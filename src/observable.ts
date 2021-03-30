@@ -243,6 +243,8 @@ export class Observable{
 
 		if(schema.$type===ObservableTypes.object){
 			initObjectObservable.call(this)
+		}else if(schema.$type===ObservableTypes.array){
+			initArrayObservable.call(this)
 		}
 
 	}

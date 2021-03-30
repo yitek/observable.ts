@@ -23,6 +23,7 @@ export declare class Template {
     static resolve(fn: template): Template;
     render(states: any, store?: any, controller?: any): any;
 }
+export declare function variable(name?: string): any;
 export interface IRenderContext {
     scope: Scope;
     template: Template;

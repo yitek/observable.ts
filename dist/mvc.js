@@ -21,11 +21,11 @@ define(["require", "exports", "observable"], function (require, exports, observa
             this.raw = fn;
             this.statesSchema = new observable_1.Schema('$__mvc.states__');
             var modelBuilder = this.statesSchema.$createBuilder();
-            currentVLoops = this.vloops = {};
-            currentVLoopsCount = 0;
+            locals = this.vloops = {};
+            localCount = 0;
             this.vnode = fn(modelBuilder);
-            currentVLoops = undefined;
-            currentVLoopsCount = 0;
+            locals = undefined;
+            localCount = 0;
             Object.defineProperty(fn, '$__Template.instance__', { enumerable: false, writable: false, configurable: false, value: this });
         }
         Template.resolve = function (fn) {
@@ -44,16 +44,20 @@ define(["require", "exports", "observable"], function (require, exports, observa
         return Template;
     }());
     exports.Template = Template;
-    var currentVLoops;
-    var currentVLoopsCount = 0;
-    function vloop(name) {
+    var locals;
+    var localCount = 0;
+    function variable(name) {
         if (!name)
-            name = '-loop-item-' + (currentVLoopsCount++);
+            name = '-loop-item-' + (localCount++);
         var schema = new observable_1.Schema(name);
-        currentVLoops[name] = schema.$createBuilder();
+        return locals[name] = schema.$createBuilder();
     }
+    exports.variable = variable;
     function renderVirtualNode(vnode, context, returnElem) {
         var elem = renderDomText(vnode, context, returnElem);
+        if (elem !== undefined)
+            return elem;
+        elem = handleLoop(vnode, context, returnElem);
         if (elem !== undefined)
             return elem;
         elem = handleCondition(vnode, context, returnElem);
@@ -106,10 +110,12 @@ define(["require", "exports", "observable"], function (require, exports, observa
         else
             return null;
     }
-    function handleFor(vnode, context) {
+    function handleLoop(vnode, context, returnElem) {
         if (!vnode || !vnode.attrs || !vnode.attrs.for)
             return;
         var pair = vnode.attrs.for;
+        var asSchema = pair.as;
+        asSchema = asSchema['$__builder.target__'] || asSchema;
         var value = pair.each;
         if (!value)
             return;
@@ -118,6 +124,8 @@ define(["require", "exports", "observable"], function (require, exports, observa
         var anchor = DomApi.createComment('for');
         Object.defineProperty(anchor, '$__mvc.for.anchor__', { enumerable: false, configurable: true, writable: true, value: items });
         function loop(each, asSchema, length) {
+            if (scope[asSchema.$name])
+                throw new Error('loop array is in use');
             for (var i = 0; i < length; i++) {
                 var item = each[i];
                 if (item instanceof observable_1.Observable) {
@@ -127,17 +135,57 @@ define(["require", "exports", "observable"], function (require, exports, observa
                     scope[asSchema.$name] = new observable_1.Observable(asSchema, item);
                 }
                 vnode.attrs.for = undefined;
-                var itemElem = renderVirtualNode(vnode, context);
+                var itemElem = renderVirtualNode(vnode, context, true);
                 vnode.attrs.for = pair;
                 items.push(itemElem);
             }
+            scope[asSchema.$name] = undefined;
         }
         if (value instanceof observable_1.Schema) {
             value = value['$__builder.target__'] || value;
+            debugger;
+            value.$asArray();
+            value.$item = asSchema;
             value = value.$resolveFromScope(context.scope);
         }
+        var length;
         if (value instanceof observable_1.Observable) {
+            length = value.length.$get();
+            value.$subscribe(function (e) {
+                if (e.removes) {
+                    if (e.appends)
+                        throw new Error('appends and removes cannot be setted at same time');
+                    for (var i in e.removes) {
+                        var itemElem = items.shift();
+                        DomApi.remove(itemElem);
+                    }
+                }
+                else {
+                    if (e.appends) {
+                        if (scope[asSchema.$name])
+                            throw new Error('loop array is in use');
+                        vnode.attrs.for = undefined;
+                        for (var _i = 0, _a = e.appends; _i < _a.length; _i++) {
+                            var item = _a[_i];
+                            scope[asSchema.$name] = item;
+                            var itemElem = renderVirtualNode(vnode, context, true);
+                            items.push(itemElem);
+                            DomApi.insertBefore(itemElem, anchor);
+                        }
+                        scope[asSchema.$name] = undefined;
+                        vnode.attrs.for = pair;
+                    }
+                }
+            });
         }
+        loop(value, asSchema, length);
+        return returnElem ? items : function (p) {
+            for (var _i = 0, items_1 = items; _i < items_1.length; _i++) {
+                var el = items_1[_i];
+                DomApi.append(p, el);
+            }
+            DomApi.append(p, anchor);
+        };
     }
     function renderDomText(value, context, returnElem) {
         var t = typeof value;

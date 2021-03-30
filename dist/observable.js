@@ -250,6 +250,9 @@ define(["require", "exports"], function (require, exports) {
             if (schema.$type === ObservableTypes.object) {
                 initObjectObservable.call(this);
             }
+            else if (schema.$type === ObservableTypes.array) {
+                initArrayObservable.call(this);
+            }
         }
         Observable.prototype.$get = function (getterType) {
             return getValue.call(this, getterType);

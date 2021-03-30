@@ -37,11 +37,11 @@ export class Template{
 		this.raw = fn
 		this.statesSchema = new Schema('$__mvc.states__')
 		let modelBuilder = this.statesSchema.$createBuilder()
-		currentVLoops = this.vloops = {}
-		currentVLoopsCount = 0
+		locals = this.vloops = {}
+		localCount = 0
 		this.vnode = fn(modelBuilder)
-		currentVLoops = undefined
-		currentVLoopsCount = 0
+		locals = undefined
+		localCount = 0
 		Object.defineProperty(fn,'$__Template.instance__',{enumerable:false,writable:false,configurable:false,value:this})
 	}
 	static resolve(fn:template):Template{
@@ -57,12 +57,12 @@ export class Template{
 		return renderVirtualNode(this.vnode,context)
 	}
 }
-let currentVLoops;
-let currentVLoopsCount=0
-function vloop(name?:string){
-	if(!name) name = '-loop-item-' + (currentVLoopsCount++)
+let locals;
+let localCount=0
+export function variable(name?:string){
+	if(!name) name = '-loop-item-' + (localCount++)
 	let schema = new Schema(name)
-	currentVLoops[name] = schema.$createBuilder()
+	return locals[name] = schema.$createBuilder()
 }
 export interface IRenderContext{
 	scope:Scope
@@ -72,9 +72,10 @@ export interface IRenderContext{
 	controller:any
 }
 function renderVirtualNode(vnode:IVirtualNode|string,context:IRenderContext,returnElem?:boolean):any{
-	let elem = renderDomText(vnode,context,returnElem)
+	let elem:any = renderDomText(vnode,context,returnElem)
 	if(elem!==undefined) return elem
-
+	elem = handleLoop(vnode as IVirtualNode,context,returnElem)
+	if(elem!==undefined) return elem
 	elem = handleCondition(vnode as IVirtualNode,context,returnElem)
 	if(elem!==undefined) return elem
 	
@@ -120,16 +121,20 @@ function handleCondition(vnode:IVirtualNode,context:IRenderContext,returnElem?:b
 		return returnElem?elem:(p)=>DomApi.append(p,elem)
 	}else return null
 }
-function handleFor(vnode:IVirtualNode,context:IRenderContext){
+function handleLoop(vnode:IVirtualNode,context:IRenderContext,returnElem?:boolean){
 	if(!vnode || !vnode.attrs || !vnode.attrs.for) return
-	let pair = vnode.attrs.for;
+	let pair = vnode.attrs.for
+	let asSchema = pair.as
+	asSchema = asSchema['$__builder.target__'] || asSchema
 	let value = pair.each
 	if(!value) return
+
 	let items = []
 	let scope = context.scope
 	let anchor = DomApi.createComment('for')
 	Object.defineProperty(anchor,'$__mvc.for.anchor__',{enumerable:false,configurable:true,writable:true,value:items})
 	function loop(each,asSchema:Schema,length){
+		if(scope[asSchema.$name]) throw new Error('loop array is in use')
 		for(let i = 0;i<length;i++){
 			let item = each[i]
 			if(item instanceof Observable) {
@@ -138,21 +143,53 @@ function handleFor(vnode:IVirtualNode,context:IRenderContext){
 				scope[asSchema.$name] = new Observable(asSchema,item)
 			}
 			vnode.attrs.for = undefined
-			let itemElem = renderVirtualNode(vnode,context)
+			let itemElem = renderVirtualNode(vnode,context,true)
 			vnode.attrs.for = pair
 			items.push(itemElem)
 		}
-		
+		scope[asSchema.$name] = undefined
 
 
 	}
 	if(value instanceof Schema){
 		value = value['$__builder.target__'] || value
+		debugger
+		value.$asArray()
+		value.$item = asSchema
 		value = value.$resolveFromScope(context.scope)
+		
 	}
-
+	let length
 	if(value instanceof Observable){
-
+		length = (value as any).length.$get()
+		value.$subscribe((e:IObservableEvent)=>{
+			if(e.removes){
+				if(e.appends) throw new Error('appends and removes cannot be setted at same time')
+				for(let i in e.removes){
+					let itemElem = items.shift()
+					DomApi.remove(itemElem)
+				}
+			}else {
+				if(e.appends){
+					if(scope[asSchema.$name]) throw new Error('loop array is in use')
+					vnode.attrs.for = undefined
+					for(let item of e.appends){
+						scope[asSchema.$name] = item
+						let itemElem = renderVirtualNode(vnode,context,true)
+						items.push(itemElem)
+						DomApi.insertBefore(itemElem,anchor)
+					}
+					scope[asSchema.$name] = undefined
+					vnode.attrs.for = pair
+				}
+			}
+			
+		})
+	}
+	loop(value,asSchema,length)
+	return returnElem?items:(p)=>{
+		for(let el of items) DomApi.append(p,el)
+		DomApi.append(p,anchor)
 	}
 }
 
