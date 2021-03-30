@@ -21,7 +21,11 @@ define(["require", "exports", "observable"], function (require, exports, observa
             this.raw = fn;
             this.statesSchema = new observable_1.Schema('$__mvc.states__');
             var modelBuilder = this.statesSchema.$createBuilder();
+            currentVLoops = this.vloops = {};
+            currentVLoopsCount = 0;
             this.vnode = fn(modelBuilder);
+            currentVLoops = undefined;
+            currentVLoopsCount = 0;
             Object.defineProperty(fn, '$__Template.instance__', { enumerable: false, writable: false, configurable: false, value: this });
         }
         Template.resolve = function (fn) {
@@ -40,17 +44,25 @@ define(["require", "exports", "observable"], function (require, exports, observa
         return Template;
     }());
     exports.Template = Template;
-    function renderVirtualNode(vnode, context) {
-        var elem = handleCondition(vnode, context);
+    var currentVLoops;
+    var currentVLoopsCount = 0;
+    function vloop(name) {
+        if (!name)
+            name = '-loop-item-' + (currentVLoopsCount++);
+        var schema = new observable_1.Schema(name);
+        currentVLoops[name] = schema.$createBuilder();
+    }
+    function renderVirtualNode(vnode, context, returnElem) {
+        var elem = renderDomText(vnode, context, returnElem);
         if (elem !== undefined)
             return elem;
-        elem = renderDomText(vnode, context);
+        elem = handleCondition(vnode, context, returnElem);
         if (elem !== undefined)
             return elem;
-        elem = renderDomElement(vnode, context);
+        elem = renderDomElement(vnode, context, returnElem);
         return elem;
     }
-    function handleCondition(vnode, context) {
+    function handleCondition(vnode, context, returnElem) {
         if (!vnode || !vnode.attrs || !vnode.attrs.if)
             return;
         var value = vnode.attrs.if;
@@ -59,8 +71,8 @@ define(["require", "exports", "observable"], function (require, exports, observa
             value = value.$resolveFromScope(context.scope);
         }
         if (value instanceof observable_1.Observable) {
-            vnode.attrs.if = null;
-            var elem_1 = renderVirtualNode(vnode, context);
+            vnode.attrs.if = undefined;
+            var elem_1 = renderVirtualNode(vnode, context, true);
             vnode.attrs.if = value;
             var anchor_1 = DomApi.createComment('if');
             value.$subscribe(function (e) {
@@ -79,41 +91,76 @@ define(["require", "exports", "observable"], function (require, exports, observa
             });
             var condition = value.$get();
             if (!condition) {
-                return anchor_1;
+                return returnElem ? anchor_1 : function (container) { return DomApi.append(container, anchor_1); };
             }
             else {
-                return elem_1;
+                return returnElem ? elem_1 : function (container) { return DomApi.append(container, elem_1); };
             }
         }
         if (value) {
-            vnode.attrs.if = null;
-            var elem = renderVirtualNode(vnode, context);
+            vnode.attrs.if = undefined;
+            var elem_2 = renderVirtualNode(vnode, context, true);
             vnode.attrs.if = value;
-            return elem;
+            return returnElem ? elem_2 : function (p) { return DomApi.append(p, elem_2); };
         }
         else
             return null;
     }
-    function renderDomText(value, context) {
-        var t = typeof value;
-        if (t === 'string')
-            return DomApi.createText(value.toString());
+    function handleFor(vnode, context) {
+        if (!vnode || !vnode.attrs || !vnode.attrs.for)
+            return;
+        var pair = vnode.attrs.for;
+        var value = pair.each;
+        if (!value)
+            return;
+        var items = [];
+        var scope = context.scope;
+        var anchor = DomApi.createComment('for');
+        Object.defineProperty(anchor, '$__mvc.for.anchor__', { enumerable: false, configurable: true, writable: true, value: items });
+        function loop(each, asSchema, length) {
+            for (var i = 0; i < length; i++) {
+                var item = each[i];
+                if (item instanceof observable_1.Observable) {
+                    scope[asSchema.$name] = item;
+                }
+                else {
+                    scope[asSchema.$name] = new observable_1.Observable(asSchema, item);
+                }
+                vnode.attrs.for = undefined;
+                var itemElem = renderVirtualNode(vnode, context);
+                vnode.attrs.for = pair;
+                items.push(itemElem);
+            }
+        }
         if (value instanceof observable_1.Schema) {
             value = value['$__builder.target__'] || value;
             value = value.$resolveFromScope(context.scope);
         }
         if (value instanceof observable_1.Observable) {
-            var elem_2 = DomApi.createText(value.$get());
-            value.$subscribe(function (e) {
-                elem_2.nodeValue = e.value;
-            });
-            return elem_2;
         }
     }
-    function renderDomElement(vnode, context) {
+    function renderDomText(value, context, returnElem) {
+        var t = typeof value;
+        if (t === 'string')
+            return returnElem ? DomApi.createText(value.toString()) : function (p) { return DomApi.append(p, DomApi.createText(value.toString())); };
+        if (value instanceof observable_1.Schema) {
+            value = value['$__builder.target__'] || value;
+            value = value.$resolveFromScope(context.scope);
+        }
+        if (value instanceof observable_1.Observable) {
+            var elem_3 = DomApi.createText(value.$get());
+            value.$subscribe(function (e) {
+                elem_3.nodeValue = e.value;
+            });
+            return returnElem ? elem_3 : function (p) { return DomApi.append(p, elem_3); };
+        }
+    }
+    function renderDomElement(vnode, context, returnElem) {
         var elem = DomApi.createElement(vnode.tag);
         for (var attrName in vnode.attrs) {
             var attrValue = vnode.attrs[attrName];
+            if (attrValue === undefined)
+                continue;
             if (DomApi.isEventAttr(elem, attrName) && typeof attrValue === 'function') {
                 bindDomElementEvent(elem, attrName, attrValue, context);
                 continue;
@@ -123,12 +170,14 @@ define(["require", "exports", "observable"], function (require, exports, observa
         if (vnode.children) {
             for (var _i = 0, _a = vnode.children; _i < _a.length; _i++) {
                 var child = _a[_i];
-                var childNode = renderVirtualNode(child, context);
-                if (childNode)
-                    elem.appendChild(childNode);
+                if (!child)
+                    continue;
+                var childMount = renderVirtualNode(child, context);
+                if (childMount)
+                    childMount(elem);
             }
         }
-        return elem;
+        return returnElem ? elem : function (p) { return DomApi.append(p, elem); };
     }
     function bindDomElementEvent(elem, evtName, handler, context) {
         DomApi.attachEvent(elem, evtName, function (e) {
@@ -163,6 +212,7 @@ define(["require", "exports", "observable"], function (require, exports, observa
         isEventAttr: function (elem, name) { return evtNameRegx.test(name) && elem[name] === null; },
         attachEvent: function (elem, evt, handler) { return elem.addEventListener(evt.replace(evtNameRegx, ''), handler, false); },
         setAttribute: function (elem, name, value) { return elem[name] = value; },
+        append: function (p, child) { return p.appendChild(child); },
         insertBefore: function (inserted, ref) { return ref.parentNode.insertBefore(inserted, ref); },
         remove: function (node) { return (node.parentNode) ? node.parentNode.removeChild(node) : undefined; }
     };

@@ -369,8 +369,8 @@ define(["require", "exports"], function (require, exports) {
             });
         }
         Scope_1 = Scope;
-        Scope.prototype.$declare = function (name, schema) {
-            return this[name] = new Observable(schema);
+        Scope.prototype.$declare = function (name, schema, value) {
+            return this[name] = new Observable(schema, value, name);
         };
         Scope.prototype.$createScope = function (name) {
             return new Scope_1(name, this);

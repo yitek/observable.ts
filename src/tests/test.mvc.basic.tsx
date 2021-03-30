@@ -9,6 +9,6 @@ function view(states:any){
 }
 let tmpl = new Template(view)
 let data = {name:'yiy'}
-let elem = tmpl.render(data)
-document.body.appendChild(elem)
+let appendTo = tmpl.render(data)
+appendTo(document.body)
 

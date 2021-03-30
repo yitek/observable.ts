@@ -10,7 +10,7 @@ define(["require", "exports", "../mvc"], function (require, exports, mvc_1) {
     }
     var tmpl = new mvc_1.Template(view);
     var data = { name: 'yiy' };
-    var elem = tmpl.render(data);
-    document.body.appendChild(elem);
+    var appendTo = tmpl.render(data);
+    appendTo(document.body);
 });
 //# sourceMappingURL=test.mvc.basic.js.map

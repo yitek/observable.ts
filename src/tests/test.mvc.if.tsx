@@ -13,6 +13,7 @@ function view(model:any){
 debugger
 let tmpl = new Template(view)
 let data = {title:"DETAILS",data:{name:'yiy'}}
-let elem = tmpl.render(data)
-document.body.appendChild(elem)
+let mount = tmpl.render(data)
+mount(document.body)
+
 

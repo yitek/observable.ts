@@ -15,7 +15,7 @@ define(["require", "exports", "../mvc"], function (require, exports, mvc_1) {
     debugger;
     var tmpl = new mvc_1.Template(view);
     var data = { title: "DETAILS", data: { name: 'yiy' } };
-    var elem = tmpl.render(data);
-    document.body.appendChild(elem);
+    var mount = tmpl.render(data);
+    mount(document.body);
 });
 //# sourceMappingURL=test.mvc.if.js.map

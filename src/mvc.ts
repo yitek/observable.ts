@@ -31,12 +31,17 @@ export class Template{
 	raw:Function
 	statesSchema:Schema
 	vnode:any
+	vloops:{[name:string]:Schema}
 
 	constructor(fn:template){
 		this.raw = fn
 		this.statesSchema = new Schema('$__mvc.states__')
 		let modelBuilder = this.statesSchema.$createBuilder()
+		currentVLoops = this.vloops = {}
+		currentVLoopsCount = 0
 		this.vnode = fn(modelBuilder)
+		currentVLoops = undefined
+		currentVLoopsCount = 0
 		Object.defineProperty(fn,'$__Template.instance__',{enumerable:false,writable:false,configurable:false,value:this})
 	}
 	static resolve(fn:template):Template{
@@ -52,6 +57,13 @@ export class Template{
 		return renderVirtualNode(this.vnode,context)
 	}
 }
+let currentVLoops;
+let currentVLoopsCount=0
+function vloop(name?:string){
+	if(!name) name = '-loop-item-' + (currentVLoopsCount++)
+	let schema = new Schema(name)
+	currentVLoops[name] = schema.$createBuilder()
+}
 export interface IRenderContext{
 	scope:Scope
 	template:Template,
@@ -59,17 +71,19 @@ export interface IRenderContext{
 	store:any,
 	controller:any
 }
-function renderVirtualNode(vnode:IVirtualNode|string,context:IRenderContext):any{
-	let elem = handleCondition(vnode as IVirtualNode,context)
-	if(elem!==undefined) return elem
-	elem = renderDomText(vnode,context)
+function renderVirtualNode(vnode:IVirtualNode|string,context:IRenderContext,returnElem?:boolean):any{
+	let elem = renderDomText(vnode,context,returnElem)
 	if(elem!==undefined) return elem
 
-	elem = renderDomElement(vnode as IVirtualNode,context)
+	elem = handleCondition(vnode as IVirtualNode,context,returnElem)
+	if(elem!==undefined) return elem
+	
+
+	elem = renderDomElement(vnode as IVirtualNode,context,returnElem)
 	return elem
 }
 
-function handleCondition(vnode:IVirtualNode,context:IRenderContext){
+function handleCondition(vnode:IVirtualNode,context:IRenderContext,returnElem?:boolean){
 	if(!vnode || !vnode.attrs || !vnode.attrs.if) return
 	let value = vnode.attrs.if;
 	if(value instanceof Schema){
@@ -77,8 +91,8 @@ function handleCondition(vnode:IVirtualNode,context:IRenderContext){
 		value = value.$resolveFromScope(context.scope)
 	}
 	if(value instanceof Observable){
-		vnode.attrs.if = null
-		let elem = renderVirtualNode(vnode,context)
+		vnode.attrs.if = undefined
+		let elem = renderVirtualNode(vnode,context,true)
 		vnode.attrs.if = value
 		let anchor = DomApi.createComment('if')
 		value.$subscribe((e:IObservableEvent)=>{
@@ -96,20 +110,55 @@ function handleCondition(vnode:IVirtualNode,context:IRenderContext){
 		})
 		let condition = value.$get()
 		if(!condition) {
-			return anchor
-		}else {return elem}
+			return returnElem?anchor:(container)=> DomApi.append(container,anchor)
+		}else {return returnElem?elem:(container)=>DomApi.append(container,elem)}
 	}
 	if(value){
-		vnode.attrs.if = null
-		let elem = renderVirtualNode(vnode,context)
+		vnode.attrs.if = undefined
+		let elem = renderVirtualNode(vnode,context,true)
 		vnode.attrs.if = value
-		return elem
+		return returnElem?elem:(p)=>DomApi.append(p,elem)
 	}else return null
 }
+function handleFor(vnode:IVirtualNode,context:IRenderContext){
+	if(!vnode || !vnode.attrs || !vnode.attrs.for) return
+	let pair = vnode.attrs.for;
+	let value = pair.each
+	if(!value) return
+	let items = []
+	let scope = context.scope
+	let anchor = DomApi.createComment('for')
+	Object.defineProperty(anchor,'$__mvc.for.anchor__',{enumerable:false,configurable:true,writable:true,value:items})
+	function loop(each,asSchema:Schema,length){
+		for(let i = 0;i<length;i++){
+			let item = each[i]
+			if(item instanceof Observable) {
+				scope[asSchema.$name] = item
+			}else {
+				scope[asSchema.$name] = new Observable(asSchema,item)
+			}
+			vnode.attrs.for = undefined
+			let itemElem = renderVirtualNode(vnode,context)
+			vnode.attrs.for = pair
+			items.push(itemElem)
+		}
+		
 
-function renderDomText(value:any, context:IRenderContext){
+
+	}
+	if(value instanceof Schema){
+		value = value['$__builder.target__'] || value
+		value = value.$resolveFromScope(context.scope)
+	}
+
+	if(value instanceof Observable){
+
+	}
+}
+
+function renderDomText(value:any, context:IRenderContext,returnElem?:boolean){
 	let t = typeof value
-	if(t==='string' )return DomApi.createText(value.toString())
+	if(t==='string' )return returnElem?DomApi.createText(value.toString()):(p)=>DomApi.append(p,DomApi.createText(value.toString()))
 	if(value instanceof Schema){
 		value = value['$__builder.target__'] || value
 		value = value.$resolveFromScope(context.scope)
@@ -119,16 +168,16 @@ function renderDomText(value:any, context:IRenderContext){
 		value.$subscribe((e:IObservableEvent)=>{
 			elem.nodeValue = e.value
 		})
-		return elem
+		return returnElem?elem:(p)=>DomApi.append(p,elem)
 	}
 	
 }
 
-function renderDomElement(vnode:IVirtualNode,context:IRenderContext){
+function renderDomElement(vnode:IVirtualNode,context:IRenderContext,returnElem?:boolean){
 	let elem = DomApi.createElement(vnode.tag)
 	for(let attrName in vnode.attrs){
 		let attrValue = vnode.attrs[attrName]
-		
+		if(attrValue===undefined) continue
 		if(DomApi.isEventAttr(elem,attrName) && typeof attrValue==='function'){
 			bindDomElementEvent(elem,attrName,attrValue,context)
 			continue
@@ -137,11 +186,12 @@ function renderDomElement(vnode:IVirtualNode,context:IRenderContext){
 	}
 	if(vnode.children) {
 		for(let child of vnode.children){
-			let childNode = renderVirtualNode(child,context)
-			if(childNode) elem.appendChild(childNode)
+			if(!child) continue
+			let childMount = renderVirtualNode(child,context)
+			if(childMount) childMount(elem)
 		}
 	}
-	return elem
+	return returnElem?elem:(p)=>DomApi.append(p,elem)
 }
 function bindDomElementEvent(elem:any,evtName:string,handler:Function,context:IRenderContext){
 	DomApi.attachEvent(elem,evtName,(e)=>{
@@ -176,6 +226,7 @@ let DomApi = {
 	,isEventAttr:(elem:any,name:string)=>evtNameRegx.test(name) && elem[name]===null
 	,attachEvent:(elem:any,evt:string,handler:Function)=>elem.addEventListener(evt.replace(evtNameRegx,''),handler,false)
 	,setAttribute:(elem:any,name:string,value:any)=>elem[name] = value
+	,append:(p:any,child:any)=>p.appendChild(child)
 	,insertBefore:(inserted:any,ref:any)=>ref.parentNode.insertBefore(inserted,ref)
 	,remove:(node:any)=>(node.parentNode)?node.parentNode.removeChild(node):undefined
 }

@@ -361,8 +361,8 @@ export class Scope{
 			'$__scope.super__':sp
 		})
 	}
-	$declare(name:string,schema?:Schema){
-		return this[name] = new Observable(schema)
+	$declare(name:string,schema?:Schema,value?:any){
+		return this[name] = new Observable(schema,value,name)
 	}
 	$createScope(name?:string){
 		return new Scope(name, this)

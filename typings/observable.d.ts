@@ -59,7 +59,7 @@ export declare class Scope {
     private '$__scope.super__';
     private '$__scope.name__';
     constructor(name?: string, sp?: Scope);
-    $declare(name: string, schema?: Schema): Observable;
+    $declare(name: string, schema?: Schema, value?: any): Observable;
     $createScope(name?: string): Scope;
     $resolve(name: string): any;
 }
