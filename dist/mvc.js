@@ -9,6 +9,20 @@ define(["require", "exports", "observable"], function (require, exports, observa
         }
         var vnode = {};
         vnode.tag = tag, vnode.attrs = attrs;
+        if (vnode.attrs && vnode.attrs.for) {
+            var as = vnode.attrs.for.as;
+            if (!as)
+                throw new Error('for must has as statement');
+            as = as['$__builder.target__'] || as;
+            if (!as['$__mvc.variable__'])
+                throw new Error('for.as must be assigned from variable().');
+            var each = vnode.attrs.for.each;
+            each = each['$__builder.target__'] || each;
+            if (!each)
+                throw new Error('for must has as statement');
+            if (each instanceof observable_1.Schema)
+                each.$asArray(as['$__builder.target__'] || as);
+        }
         var childNodes = Array.prototype.slice.call(arguments, 2);
         if (childNodes.length)
             vnode.children = childNodes;
@@ -21,7 +35,7 @@ define(["require", "exports", "observable"], function (require, exports, observa
             this.raw = fn;
             this.statesSchema = new observable_1.Schema('$__mvc.states__');
             var modelBuilder = this.statesSchema.$createBuilder();
-            locals = this.vloops = {};
+            locals = this.variables = {};
             localCount = 0;
             this.vnode = fn(modelBuilder);
             locals = undefined;
@@ -50,6 +64,7 @@ define(["require", "exports", "observable"], function (require, exports, observa
         if (!name)
             name = '-loop-item-' + (localCount++);
         var schema = new observable_1.Schema(name);
+        Object.defineProperty(schema, '$__mvc.variable__', { enumerable: false, configurable: true, writable: false, value: true });
         return locals[name] = schema.$createBuilder();
     }
     exports.variable = variable;
@@ -70,6 +85,7 @@ define(["require", "exports", "observable"], function (require, exports, observa
         if (!vnode || !vnode.attrs || !vnode.attrs.if)
             return;
         var value = vnode.attrs.if;
+        debugger;
         if (value instanceof observable_1.Schema) {
             value = value['$__builder.target__'] || value;
             value = value.$resolveFromScope(context.scope);
@@ -143,9 +159,6 @@ define(["require", "exports", "observable"], function (require, exports, observa
         }
         if (value instanceof observable_1.Schema) {
             value = value['$__builder.target__'] || value;
-            debugger;
-            value.$asArray();
-            value.$item = asSchema;
             value = value.$resolveFromScope(context.scope);
         }
         var length;
@@ -156,7 +169,7 @@ define(["require", "exports", "observable"], function (require, exports, observa
                     if (e.appends)
                         throw new Error('appends and removes cannot be setted at same time');
                     for (var i in e.removes) {
-                        var itemElem = items.shift();
+                        var itemElem = items.pop();
                         DomApi.remove(itemElem);
                     }
                 }
@@ -176,6 +189,7 @@ define(["require", "exports", "observable"], function (require, exports, observa
                         vnode.attrs.for = pair;
                     }
                 }
+                e.cancel = true;
             });
         }
         loop(value, asSchema, length);
@@ -287,6 +301,10 @@ define(["require", "exports", "observable"], function (require, exports, observa
         }
         else if (elem.tagName === 'SELECT') {
             valueElem = elem;
+        }
+        else if (elem.tagName === 'OPTION') {
+            elem.value = value.$get();
+            return;
         }
         else {
             elem.innerHTML = value.$get();

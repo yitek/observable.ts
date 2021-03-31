@@ -40,6 +40,7 @@ interface IRequireDefine {
     amd: boolean;
     trace: boolean | string;
     resolve: IRequireResolve;
+    debug: boolean;
     require: (name: string) => IRequireModule;
     context: any;
     modules: {

@@ -553,12 +553,11 @@ var __extends = (this && this.__extends) || (function () {
             modules[name] = this;
         };
         Module.fetch = function (name, requireModule) {
-            var _a;
             if (!name)
                 throw new Error("无法获取模块,未指定模块名/url");
             var existed = define.modules[name];
             if (!existed) {
-                var uri = new Uri(name, (_a = requireModule) === null || _a === void 0 ? void 0 : _a.uri.paths);
+                var uri = new Uri(name, requireModule === null || requireModule === void 0 ? void 0 : requireModule.uri.paths);
                 existed = define.modules[uri.url];
                 //Module构造函数会往modules里面写数据
                 if (!existed)
@@ -980,4 +979,3 @@ var __extends = (this && this.__extends) || (function () {
     window.AJAX = AJAX;
     window.ajax = AJAX.request;
 })(typeof window !== 'undefined' ? window : undefined);
-//# sourceMappingURL=require.js.map

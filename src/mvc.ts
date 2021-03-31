@@ -10,6 +10,17 @@ export interface IVirtualNode{
 export function virtualNode(tag:string,attrs?:{[name:string]:any}, ...children):IVirtualNode{
 	let vnode:IVirtualNode = {}
 	vnode.tag = tag,vnode.attrs = attrs
+	if(vnode.attrs && vnode.attrs.for){
+		let as = vnode.attrs.for.as
+		if(!as) throw new Error('for must has as statement')
+		as = as['$__builder.target__']|| as
+		if(!as['$__mvc.variable__']) throw new Error('for.as must be assigned from variable().')
+
+		let each = vnode.attrs.for.each
+		each = each['$__builder.target__'] || each
+		if(!each) throw new Error('for must has as statement')
+		if(each instanceof Schema) each.$asArray(as['$__builder.target__']|| as)
+	}
 	let childNodes = Array.prototype.slice.call(arguments,2)
 	if(childNodes.length) vnode.children = childNodes
 	return vnode
@@ -31,13 +42,13 @@ export class Template{
 	raw:Function
 	statesSchema:Schema
 	vnode:any
-	vloops:{[name:string]:Schema}
+	variables:{[name:string]:Schema}
 
 	constructor(fn:template){
 		this.raw = fn
 		this.statesSchema = new Schema('$__mvc.states__')
 		let modelBuilder = this.statesSchema.$createBuilder()
-		locals = this.vloops = {}
+		locals = this.variables = {}
 		localCount = 0
 		this.vnode = fn(modelBuilder)
 		locals = undefined
@@ -62,6 +73,7 @@ let localCount=0
 export function variable(name?:string){
 	if(!name) name = '-loop-item-' + (localCount++)
 	let schema = new Schema(name)
+	Object.defineProperty(schema,'$__mvc.variable__',{enumerable:false,configurable:true,writable:false,value:true})
 	return locals[name] = schema.$createBuilder()
 }
 export interface IRenderContext{
@@ -87,6 +99,7 @@ function renderVirtualNode(vnode:IVirtualNode|string,context:IRenderContext,retu
 function handleCondition(vnode:IVirtualNode,context:IRenderContext,returnElem?:boolean){
 	if(!vnode || !vnode.attrs || !vnode.attrs.if) return
 	let value = vnode.attrs.if;
+	debugger
 	if(value instanceof Schema){
 		value = value['$__builder.target__'] || value
 		value = value.$resolveFromScope(context.scope)
@@ -153,9 +166,6 @@ function handleLoop(vnode:IVirtualNode,context:IRenderContext,returnElem?:boolea
 	}
 	if(value instanceof Schema){
 		value = value['$__builder.target__'] || value
-		debugger
-		value.$asArray()
-		value.$item = asSchema
 		value = value.$resolveFromScope(context.scope)
 		
 	}
@@ -166,7 +176,7 @@ function handleLoop(vnode:IVirtualNode,context:IRenderContext,returnElem?:boolea
 			if(e.removes){
 				if(e.appends) throw new Error('appends and removes cannot be setted at same time')
 				for(let i in e.removes){
-					let itemElem = items.shift()
+					let itemElem = items.pop()
 					DomApi.remove(itemElem)
 				}
 			}else {
@@ -183,7 +193,7 @@ function handleLoop(vnode:IVirtualNode,context:IRenderContext,returnElem?:boolea
 					vnode.attrs.for = pair
 				}
 			}
-			
+			e.cancel = true
 		})
 	}
 	loop(value,asSchema,length)
@@ -288,6 +298,9 @@ function DomValueBinder(elem:any,value:Observable,bibind?:boolean){
 		valueElem = elem
 	} else if(elem.tagName==='SELECT'){
 		valueElem = elem
+	}else if(elem.tagName==='OPTION'){
+		elem.value = value.$get()
+		return
 	}else {
 		elem.innerHTML = value.$get()
 		value.$subscribe((e:IObservableEvent)=>{

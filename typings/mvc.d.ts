@@ -16,7 +16,7 @@ export declare class Template {
     raw: Function;
     statesSchema: Schema;
     vnode: any;
-    vloops: {
+    variables: {
         [name: string]: Schema;
     };
     constructor(fn: template);

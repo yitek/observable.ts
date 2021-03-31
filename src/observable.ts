@@ -88,10 +88,10 @@ export class Schema implements ISchema{
 		Object.defineProperty(this,name,{enumerable:true,configurable:true,writable:false,value:prop})
 		return prop
 	}
-	$asArray(){
+	$asArray(item?:Schema){
 		if(this.$type ===ObservableTypes.value ) this.$type = ObservableTypes.array
 		if(this.$type === ObservableTypes.object) throw new Error('不可以将对象转成数组')
-		if(!this.$item) this.$item = new Schema('',this)
+		if(!this.$item) this.$item = item || new Schema('',this)
 		return this.$item
 	}
 	$createBuilder(){
@@ -218,7 +218,8 @@ export class Observable{
 		if(schema instanceof Schema){
 			if(parentOrValue instanceof Observable){
 				owner = parentOrValue
-				old = value = owner.$value[schema.$name]
+				index = (index===undefined||index===null)?schema.$name:index
+				old = value = owner.$value[index]
 			}else{
 				old = value = parentOrValue
 				owner = undefined
@@ -228,7 +229,7 @@ export class Observable{
 			schema = new Schema(undefined,undefined)
 			schema.$define(value)
 		}	
-		if(!index) index = schema.$name	
+		if(index===undefined || index===null) index = schema.$name	
 		implicit(this,{
 			'$owner':owner,
 			'$schema': schema,
@@ -295,8 +296,8 @@ function updateObjectObservable(evt?:IObservableEvent){
 }
 
 function initArrayObservable(){
-	(this as any).$set = setObjectValue
-	(this as any).$update = updateObjectObservable
+	(this as any).$set = setArrayValue;
+	(this as any).$update = updateArrayObservable
 	if(!this.$value) {
 		this.$value = []
 		if(this.$owner) this.$owner.$get()[this.$schema.$name] = this.$value
@@ -308,7 +309,7 @@ function initArrayObservable(){
 		this.$value = this.$owner.$value.length = value
 		return this
 	}
-	Object.defineProperty(this,'length',{enumerable:true,writable:false,configurable:false,value:length})
+	Object.defineProperty(this,'length',{enumerable:false,writable:false,configurable:true,value:length})
 	for(let i =0,j= this.$value.length;i<j;i++){
 		let item = new Observable(this.$schema.$item,this,i as any as string)
 		Object.defineProperty(this,item.$index,{enumerable:true,writable:false,configurable:true,value:item})
@@ -318,6 +319,7 @@ function initArrayObservable(){
 function setArrayValue(value){
 	value = this.$value = value || []
 	let len = this.length.$get()
+	this.length.$set(value.length)
 	for(let i =0,j= len;i<j;i++){
 		this[i.toString()].$set(value[i])
 	}
@@ -334,11 +336,11 @@ function updateArrayObservable(evt?:IObservableEvent){
 		(evt||(evt={})).removes = removes
 	}else if(this.length.$oldValue< this.length.$value){
 		let appends = []
-		for(let i = this.length.$value,j = this.length.$oldValue;i<j;i++) appends.push(this[i]);
-		(evt||(evt={})).removes = appends
+		for(let i = this.length.$oldValue,j = this.length.$value;i<j;i++) appends.push(this[i]);
+		(evt||(evt={})).appends = appends
 	}
 	evt = updateObservable.call(this,evt)
-	if(evt && evt.cancel) return evt
+	if(evt && evt.cancel){this.length.$oldValue = this.length.$value; return evt}
 	let lenEvt:IObservableEvent = this.length.$update()
 	let len = this.length.$get()
 	for(let i = 0;i<len;i++) this[i].$update()

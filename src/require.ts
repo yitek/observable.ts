@@ -222,6 +222,7 @@ interface IRequireDefine{
     amd:boolean;
     trace:boolean|string;
     resolve:IRequireResolve;
+    debug:boolean;
     
     require:(name:string)=>IRequireModule;
     context:any;
@@ -712,22 +713,29 @@ class DefineExecution{
             let result;
             let global_exports = (window as any).exports;
             if(define.trace)console.info(`[模块][definin]${this.module.url}开始执行define.factory`);
-            try{
+            if(define.debug){
                 (window as any).exports = this.exports;
                 result=this.factory.apply(this,this.factoryArguments);
                 success=true;
-            }catch(ex){
-                //如果丢出了DependenceNotDefinedException一场
-                //表示在factory里面调用了require(name)，而且该模块还未准备好
-                if(ex.isDependenceNotDefinedException){
-                    if(define.trace)console.info(`[模块][breakin]${this.module.url}`,`[依赖项][未定义]${ex.depModule.url}`);
-                    this.waitingCount++;
-                    ex.depModule.defined((mod)=>this.tryResolve());
-                    return;
-                }else throw ex;
-            }finally{
-                (window as any).exports = global_exports;
+            }else {
+                try{
+                    (window as any).exports = this.exports;
+                    result=this.factory.apply(this,this.factoryArguments);
+                    success=true;
+                }catch(ex){
+                    //如果丢出了DependenceNotDefinedException一场
+                    //表示在factory里面调用了require(name)，而且该模块还未准备好
+                    if(ex.isDependenceNotDefinedException){
+                        if(define.trace)console.info(`[模块][breakin]${this.module.url}`,`[依赖项][未定义]${ex.depModule.url}`);
+                        this.waitingCount++;
+                        ex.depModule.defined((mod)=>this.tryResolve());
+                        return;
+                    }else throw ex;
+                }finally{
+                    (window as any).exports = global_exports;
+                }
             }
+            
             if(success){ 
                   
                 if(define.trace)console.info(`[模块][defined]${this.module.url}`);  
@@ -804,6 +812,7 @@ define.amd = true;
 define.trace=false;
 define.require = Module.fetch;
 define.Resource = Resource
+define.debug = false
 
 let urlResolveRules:{[name:string]:{regex:RegExp,replacement:string}}={};
 
@@ -835,6 +844,8 @@ function boot(){
     let scripts = document.scripts;
     for(let j=scripts.length-1;j>=0;j--){
         let script = scripts[j];
+        let debug = script.getAttribute('require-debug')
+        if(debug) define.debug = true
         let init_module = script.getAttribute("require-startup") || script.getAttribute("startup") ||script.getAttribute("require-init");
         if(init_module){
             let trace = script.getAttribute("require-trace");

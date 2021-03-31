@@ -24,7 +24,7 @@ export declare class Schema implements ISchema {
     constructor(name?: string, owner?: Schema);
     $define(value: any): Schema;
     $prop(name: string, raw?: any): Schema;
-    $asArray(): Schema;
+    $asArray(item?: Schema): Schema;
     $createBuilder(): any;
     $resolveFromScope(scope: Scope): any;
 }

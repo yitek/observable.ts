@@ -92,13 +92,13 @@ define(["require", "exports"], function (require, exports) {
             Object.defineProperty(this, name, { enumerable: true, configurable: true, writable: false, value: prop });
             return prop;
         };
-        Schema.prototype.$asArray = function () {
+        Schema.prototype.$asArray = function (item) {
             if (this.$type === ObservableTypes.value)
                 this.$type = ObservableTypes.array;
             if (this.$type === ObservableTypes.object)
                 throw new Error('不可以将对象转成数组');
             if (!this.$item)
-                this.$item = new Schema_1('', this);
+                this.$item = item || new Schema_1('', this);
             return this.$item;
         };
         Schema.prototype.$createBuilder = function () {
@@ -222,7 +222,8 @@ define(["require", "exports"], function (require, exports) {
             if (schema instanceof Schema) {
                 if (parentOrValue instanceof Observable) {
                     owner = parentOrValue;
-                    old = value = owner.$value[schema.$name];
+                    index = (index === undefined || index === null) ? schema.$name : index;
+                    old = value = owner.$value[index];
                 }
                 else {
                     old = value = parentOrValue;
@@ -234,7 +235,7 @@ define(["require", "exports"], function (require, exports) {
                 schema = new Schema(undefined, undefined);
                 schema.$define(value);
             }
-            if (!index)
+            if (index === undefined || index === null)
                 index = schema.$name;
             implicit(this, {
                 '$owner': owner,
@@ -303,7 +304,8 @@ define(["require", "exports"], function (require, exports) {
         return evt;
     }
     function initArrayObservable() {
-        this.$set = setObjectValue(this).$update = updateObjectObservable;
+        this.$set = setArrayValue;
+        this.$update = updateArrayObservable;
         if (!this.$value) {
             this.$value = [];
             if (this.$owner)
@@ -316,7 +318,7 @@ define(["require", "exports"], function (require, exports) {
             this.$value = this.$owner.$value.length = value;
             return this;
         };
-        Object.defineProperty(this, 'length', { enumerable: true, writable: false, configurable: false, value: length });
+        Object.defineProperty(this, 'length', { enumerable: false, writable: false, configurable: true, value: length });
         for (var i = 0, j = this.$value.length; i < j; i++) {
             var item = new Observable(this.$schema.$item, this, i);
             Object.defineProperty(this, item.$index, { enumerable: true, writable: false, configurable: true, value: item });
@@ -325,6 +327,7 @@ define(["require", "exports"], function (require, exports) {
     function setArrayValue(value) {
         value = this.$value = value || [];
         var len = this.length.$get();
+        this.length.$set(value.length);
         for (var i = 0, j = len; i < j; i++) {
             this[i.toString()].$set(value[i]);
         }
@@ -343,13 +346,15 @@ define(["require", "exports"], function (require, exports) {
         }
         else if (this.length.$oldValue < this.length.$value) {
             var appends = [];
-            for (var i = this.length.$value, j = this.length.$oldValue; i < j; i++)
+            for (var i = this.length.$oldValue, j = this.length.$value; i < j; i++)
                 appends.push(this[i]);
-            (evt || (evt = {})).removes = appends;
+            (evt || (evt = {})).appends = appends;
         }
         evt = updateObservable.call(this, evt);
-        if (evt && evt.cancel)
+        if (evt && evt.cancel) {
+            this.length.$oldValue = this.length.$value;
             return evt;
+        }
         var lenEvt = this.length.$update();
         var len = this.length.$get();
         for (var i = 0; i < len; i++)
