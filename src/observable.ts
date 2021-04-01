@@ -202,6 +202,7 @@ export class Observable{
 	$value:any
 	$oldValue:any
 	private $__observers__
+	private $__length__
 	constructor(schema:any,parentOrValue?:any,index?:string){
 		let owner ,value,old
 		if(schema instanceof Schema){
@@ -347,7 +348,21 @@ function initArrayObservable(){
 	let length = new Observable(lengthSchema,this);
 	(length as any).$set = function(value){
 		value = parseInt(value) || 0
-		if(value!==this.$oldValue){
+		let old = this.$oldValue
+		if(value>old){
+			let arr = this.$super
+			for(let i=old;i<value;i++){
+				let item = new Observable(arr.$schema.$item,arr,i as any as string)
+				Object.defineProperty(arr,i,{enumerable:true,configurable:true,writable:false,value:item})
+			}
+			this.$value = this.$owner.$value.length = value
+			if(arr.$__length__<value) arr.$__length__ = value
+		}else if(value<old){
+			let arr = this.$super
+			for(let i=value;i<old;i++){
+				let item = arr[i]
+				Object.defineProperty(arr,i,{enumerable:false,configurable:true,writable:false,value:item})
+			}
 			this.$value = this.$owner.$value.length = value
 		}
 		
@@ -358,56 +373,54 @@ function initArrayObservable(){
 		let item = new Observable(this.$schema.$item,this,i as any as string)
 		Object.defineProperty(this,item.$index,{enumerable:true,writable:false,configurable:true,value:item})
 	}
+	Object.defineProperty(this,'$__length__',{enumerable:false,writable:false,configurable:false,value:this.length.$value})
 }
 
 function setArrayObservable(value:any[],partial?:boolean){
 	value = this.$value = value || []
-	let len = this.length.$get()
-	this.length.$set(value.length)
-	for(let i =0,j= len;i<j;i++){
-		let ob = this[i]
-		let item = value[i]
-		if(partial){
-			if(item!==undefined) ob.$set(value[i],true)
-		}else {
-			ob.$set(item)
+	
+	if(partial){
+		for(let i =0;i<value.length;i++){
+			let itemValue = value[i]
+			let item = this[i]
+			if(itemValue!==undefined){
+				if(item)item.$set(itemValue,true)
+				else this.$value[i] = itemValue
+			}
+			
 		}
+		if(value.length>this.length.$value)this.length.$set(value.length)
+	}else{
+		this.$value = value
+		for(let i =0;i<value.length;i++){
+			this[i].$set(value[i])			
+		}
+		this.length.$set(value.length)
 	}
-	for(let i =value.length;i<len;i++){
-		let ob = this[i]
-		Object.defineProperty(this,ob.$index,{enumerable:false,writable:false,configurable:true,value:ob})
-	}
-	for(let i = len,j=value.length;i<j;i++){
-		let item = new Observable(this.$schema.$item,this,i as any as string)
-		Object.defineProperty(this,item.$index,{enumerable:true,writable:false,configurable:true,value:item})
-	}
+	
+	
+	
 	return this
 }
 function flushArrayObservable(evt0?:IObservableEvent,partialValue?:any[]){
-	let len
-	let modifies = [],removes
+	
 	if(partialValue) {
-		for(let i in partialValue){
-			let itemValue = partialValue[i]
-			if(itemValue!==undefined) {
-				let item = this[i as any as string]
-				if(item) item.$set(itemValue,true)
-			}
-		}
+		this.$set(partialValue,true)
 	}
+	let modifies = [],removes
+	let oldLen = this.length.$oldValue
+	let newLen = this.length.$value
 	let evt = evt0 || {}
-	if(this.length.$oldValue> this.length.$value){
-		len = this.length.$value
+	if(oldLen> newLen){
+		
 		removes=[]
-		for(let i = this.length.$value,j = this.length.$oldValue;i<j;i++){
+		for(let i = newLen;i<oldLen;i++){
 			removes.push(this[i]);
-			delete this[i]
 		} 
 		evt.removes = removes
-	}else if(this.length.$oldValue< this.length.$value){
-		len = this.length.$oldValue
+	}else if(oldLen<newLen){
 		let appends = []
-		for(let i = this.length.$oldValue,j = this.length.$value;i<j;i++){
+		for(let i = oldLen;i<newLen;i++){
 			let newItem = this[i]
 			if(!newItem){
 				newItem = new Observable(this.$schema,this,i as any as string)
@@ -416,9 +429,12 @@ function flushArrayObservable(evt0?:IObservableEvent,partialValue?:any[]){
 			appends.push(newItem);
 		} 
 		evt.appends = appends
-	}else {
-		len = this.length.$value
 	}
+	for(let i =newLen;i<this.$__length__;i++){
+		delete this[i]
+	}
+	this.$__length__ = 0
+	let len = Math.min(oldLen,newLen)
 	for(let i = 0;i<len;i++) modifies.push(this[i])
 	evt.modifies = modifies
 	evt = flushObservable.call(this,evt0===null?null:evt)
@@ -426,6 +442,7 @@ function flushArrayObservable(evt0?:IObservableEvent,partialValue?:any[]){
 	let lenEvt:IObservableEvent = this.length.$flush(evt0===null?null:undefined)
 	if((evt&&evt.cancel) || (lenEvt && lenEvt.cancel)) evt =null
 	for(let i = 0;i<len;i++) modifies[i].$flush(evt===null?null:undefined)
+	
 	if(removes){
 		for(let i = 0;i<removes.length;i++) {
 			removes[i].$flush({action:'removed'})

@@ -357,7 +357,23 @@ function initArrayObservable() {
     var length = new Observable(lengthSchema, this);
     length.$set = function (value) {
         value = parseInt(value) || 0;
-        if (value !== this.$oldValue) {
+        var old = this.$oldValue;
+        if (value > old) {
+            var arr = this.$super;
+            for (var i = old; i < value; i++) {
+                var item = new Observable(arr.$schema.$item, arr, i);
+                Object.defineProperty(arr, i, { enumerable: true, configurable: true, writable: false, value: item });
+            }
+            this.$value = this.$owner.$value.length = value;
+            if (arr.$__length__ < value)
+                arr.$__length__ = value;
+        }
+        else if (value < old) {
+            var arr = this.$super;
+            for (var i = value; i < old; i++) {
+                var item = arr[i];
+                Object.defineProperty(arr, i, { enumerable: false, configurable: true, writable: false, value: item });
+            }
             this.$value = this.$owner.$value.length = value;
         }
         return this;
@@ -367,59 +383,51 @@ function initArrayObservable() {
         var item = new Observable(this.$schema.$item, this, i);
         Object.defineProperty(this, item.$index, { enumerable: true, writable: false, configurable: true, value: item });
     }
+    Object.defineProperty(this, '$__length__', { enumerable: false, writable: false, configurable: false, value: this.length.$value });
 }
 function setArrayObservable(value, partial) {
     value = this.$value = value || [];
-    var len = this.length.$get();
-    this.length.$set(value.length);
-    for (var i = 0, j = len; i < j; i++) {
-        var ob = this[i];
-        var item = value[i];
-        if (partial) {
-            if (item !== undefined)
-                ob.$set(value[i], true);
+    if (partial) {
+        for (var i = 0; i < value.length; i++) {
+            var itemValue = value[i];
+            var item = this[i];
+            if (itemValue !== undefined) {
+                if (item)
+                    item.$set(itemValue, true);
+                else
+                    this.$value[i] = itemValue;
+            }
         }
-        else {
-            ob.$set(item);
+        if (value.length > this.length.$value)
+            this.length.$set(value.length);
+    }
+    else {
+        this.$value = value;
+        for (var i = 0; i < value.length; i++) {
+            this[i].$set(value[i]);
         }
-    }
-    for (var i = value.length; i < len; i++) {
-        var ob = this[i];
-        Object.defineProperty(this, ob.$index, { enumerable: false, writable: false, configurable: true, value: ob });
-    }
-    for (var i = len, j = value.length; i < j; i++) {
-        var item = new Observable(this.$schema.$item, this, i);
-        Object.defineProperty(this, item.$index, { enumerable: true, writable: false, configurable: true, value: item });
+        this.length.$set(value.length);
     }
     return this;
 }
 function flushArrayObservable(evt0, partialValue) {
-    var len;
-    var modifies = [], removes;
     if (partialValue) {
-        for (var i in partialValue) {
-            var itemValue = partialValue[i];
-            if (itemValue !== undefined) {
-                var item = this[i];
-                if (item)
-                    item.$set(itemValue, true);
-            }
-        }
+        this.$set(partialValue, true);
     }
+    var modifies = [], removes;
+    var oldLen = this.length.$oldValue;
+    var newLen = this.length.$value;
     var evt = evt0 || {};
-    if (this.length.$oldValue > this.length.$value) {
-        len = this.length.$value;
+    if (oldLen > newLen) {
         removes = [];
-        for (var i = this.length.$value, j = this.length.$oldValue; i < j; i++) {
+        for (var i = newLen; i < oldLen; i++) {
             removes.push(this[i]);
-            delete this[i];
         }
         evt.removes = removes;
     }
-    else if (this.length.$oldValue < this.length.$value) {
-        len = this.length.$oldValue;
+    else if (oldLen < newLen) {
         var appends = [];
-        for (var i = this.length.$oldValue, j = this.length.$value; i < j; i++) {
+        for (var i = oldLen; i < newLen; i++) {
             var newItem = this[i];
             if (!newItem) {
                 newItem = new Observable(this.$schema, this, i);
@@ -429,9 +437,11 @@ function flushArrayObservable(evt0, partialValue) {
         }
         evt.appends = appends;
     }
-    else {
-        len = this.length.$value;
+    for (var i = newLen; i < this.$__length__; i++) {
+        delete this[i];
     }
+    this.$__length__ = 0;
+    var len = Math.min(oldLen, newLen);
     for (var i = 0; i < len; i++)
         modifies.push(this[i]);
     evt.modifies = modifies;
