@@ -146,41 +146,40 @@ let schemaBuilderHandlers = {
 	}
 }
 
-
+const delayTasks = []
+let delayTimer
+export function delay(task){
+	if(!delayTimer) delayTimer = setTimeout(()=>{
+		while(delayTasks.length){
+			let task = delayTasks.shift()
+			task()
+		}
+		delayTimer = 0
+	},0)
+}
 
 enum ObservableGetterTypes{
 	newest,
 	old,
 	raw
 }
-function getValue(getterType?:ObservableGetterTypes){
-	if(getterType===undefined || getterType===ObservableGetterTypes.newest) return this.$value
-	if(getterType === ObservableGetterTypes.old) return this.$oldValue
-	if(this.$owner){
-		let target = this.$owner.$get(ObservableGetterTypes.raw)
-		return target[this.$schema.$name]
-	}
-}
-function setValue(value:any){
-	this.$value = value
-	return this
-}
+
 function notify(evt){
-	if(this.$__valuechanges__){
-		for(let i = 0,j=this.$__valuechanges__.length;i<j;i++){
-			if(this.$__valuechanges__[i].call(this,evt)===false) return evt 
+	if(this.$__observers__){
+		for(let i = 0,j=this.$__observers__.length;i<j;i++){
+			if(this.$__observers__[i].call(this,evt)===false) return this 
 		}
 	}
-	return evt
+	return this
 }
 function subscribe(handler:(evt)=>any){
-	(this.$__valuechanges__ || (this.$__valuechanges__=[])).push(handler)
+	(this.$__observers__ || (this.$__observers__=[])).push(handler)
 	return this
 }
 function unsibscribe(handler:(evt)=>any){
-	if(this.$__valuechanges__) for(let i = 0,j=this.$__valuechanges__.length;i<j;i++){
-		let existed = this.$__valuechanges__.shift()
-		if(existed!==handler) this.$__valuechanges__.push(handler)
+	if(this.$__observers__) for(let i = 0,j=this.$__observers__.length;i<j;i++){
+		let existed = this.$__observers__.shift()
+		if(existed!==handler) this.$__observers__.push(handler)
 	}
 	return this
 }
@@ -190,29 +189,19 @@ export interface IObservableEvent{
 	old?:any
 	cancel?:boolean
 	sender?:Observable
+	action?:string
 	appends?:Observable[]
 	removes?:Observable[]
+	modifies?:Observable[]
 }
 
-function updateObservable(evt?:IObservableEvent){
-	if(this.$value== this.$oldValue && !evt) return
-	if(!evt) evt = {}
-	evt.old = this.$oldValue
-	evt.value = this.$value
-	evt.sender = this
-
-	this.$oldValue = this.$value
-	if(this.$owner) this.$owner.$get()[this.$schema.$name] = this.$value
-	notify.call(this,evt)
-	return evt
-}
 export class Observable{
 	$schema:Schema
 	$index: string
 	$owner:Observable
 	$value:any
 	$oldValue:any
-	private $__valuechanges__
+	private $__observers__
 	constructor(schema:any,parentOrValue?:any,index?:string){
 		let owner ,value,old
 		if(schema instanceof Schema){
@@ -238,8 +227,8 @@ export class Observable{
 			'$index': index,
 			'$get': this.$get,
 			'$set': this.$set,
-			'$update': this.$update,
-			'$__valuechanges__' : undefined
+			'$flush': this.$flush,
+			'$__observers__' : undefined
 		})
 
 		if(schema.$type===ObservableTypes.object){
@@ -251,13 +240,13 @@ export class Observable{
 	}
 
 	$get(getterType?:ObservableGetterTypes):any{
-		return getValue.call(this,getterType)
+		return getValueObservable.call(this,getterType)
 	}
-	$set(value:any):Observable{
-		return setValue.call(this,value)
+	$set(value:any,partial?:boolean):Observable{
+		return setValueObservable.call(this,value,partial)
 	}
-	$update(evt?:IObservableEvent){
-		return updateObservable.call(this,evt)
+	$flush(evt?:any,partialValue?:any){
+		return flushObservable.call(this,evt,partialValue)
 	}
 	$subscribe(handler:(evt)=>any,disposable?){
 		return subscribe.call(this,handler)
@@ -266,13 +255,43 @@ export class Observable{
 		return unsibscribe.call(this,handler)
 	}
 }
+function getValueObservable(getterType?:ObservableGetterTypes){
+	if(getterType===undefined || getterType===ObservableGetterTypes.newest) return this.$value
+	if(getterType === ObservableGetterTypes.old) return this.$oldValue
+	if(this.$owner){
+		let target = this.$owner.$get(ObservableGetterTypes.raw)
+		return target[this.$schema.$name]
+	}
+}
+function setValueObservable(value:any,partial?:boolean){
+	if(value!==this.$oldValue){
+		this.$value = value
+	}
+	
+	return this
+}
+function flushObservable(evt?:IObservableEvent,partialValue?:any){
+	let old = this.$oldValue
+	if(partialValue!==undefined) this.$value = partialValue
+	if((!evt || evt.action!=='removed') && this.$owner)
+		this.$oldValue = this.$owner.$value[this.$index] = 	this.$value;
+	if(this.$value=== old && !evt) return
+	if(evt===null) return
+	if(!evt) evt = {}
+	evt.old = old
+	evt.value = this.$value
+	evt.sender = this
+	notify.call(this,evt)
+	
+	return evt
+}
 implicit(Observable.prototype,{
-	'$get':getValue,'$set':setValue,'$update':updateObservable,'$subscribe':subscribe,'$unsubscribe':unsibscribe
+	'$get':getValueObservable,'$set':setValueObservable,'$flush':flushObservable,'$subscribe':subscribe,'$unsubscribe':unsibscribe
 })
 
 function initObjectObservable(){
-	(this as any).$set = setObjectValue;
-	(this as any).$update = updateObjectObservable;
+	(this as any).$set = setObjectObservable;
+	(this as any).$flush = flushObjectObservable;
 	if(!this.$value) {
 		this.$value = {}
 		if(this.$owner) this.$owner.$get()[this.$schema.$name] = this.$value
@@ -283,21 +302,43 @@ function initObjectObservable(){
 	}
 }
 
-function setObjectValue(value){
+function setObjectObservable(value:any,partial?:boolean){
 	value = this.$value = value || {}
-	for(let name in this) this[name].$set(value[name])
+	if(partial){
+		for(let name in value){
+			let ob = this[name]
+			if(ob) ob.$set(value[name],true)
+		}
+	}else {
+		for(let name in this) this[name].$set(value[name])
+	}
+	
 	return this
 }
-function updateObjectObservable(evt?:IObservableEvent){
-	evt = updateObservable.call(this,evt)
-	if(evt && evt.cancel) return evt
-	for(let name in this) this[name] .$update()
-	return evt
+function flushObjectObservable(evt?:IObservableEvent,partialValue?:any){
+	if(partialValue){
+		for(let n in partialValue) {
+			let ob = this[n]
+			if(ob) ob.$set(partialValue[n],true)
+		}
+		evt = flushObservable.call(this,evt)
+		for(let name in partialValue) {
+			let ob = this[name]
+			if(ob) ob.$flush(evt===null?null:undefined,partialValue[name])
+		}
+		return evt
+	}else{
+		let evt1 = flushObservable.call(this,evt)
+		for(let name in this) this[name].$flush((evt1&&evt1.cancel)?null:undefined)
+		return evt
+	}
+	
+	
 }
 
 function initArrayObservable(){
-	(this as any).$set = setArrayValue;
-	(this as any).$update = updateArrayObservable
+	(this as any).$set = setArrayObservable;
+	(this as any).$flush = flushArrayObservable
 	if(!this.$value) {
 		this.$value = []
 		if(this.$owner) this.$owner.$get()[this.$schema.$name] = this.$value
@@ -306,7 +347,10 @@ function initArrayObservable(){
 	let length = new Observable(lengthSchema,this);
 	(length as any).$set = function(value){
 		value = parseInt(value) || 0
-		this.$value = this.$owner.$value.length = value
+		if(value!==this.$oldValue){
+			this.$value = this.$owner.$value.length = value
+		}
+		
 		return this
 	}
 	Object.defineProperty(this,'length',{enumerable:false,writable:false,configurable:true,value:length})
@@ -316,12 +360,22 @@ function initArrayObservable(){
 	}
 }
 
-function setArrayValue(value){
+function setArrayObservable(value:any[],partial?:boolean){
 	value = this.$value = value || []
 	let len = this.length.$get()
 	this.length.$set(value.length)
 	for(let i =0,j= len;i<j;i++){
-		this[i.toString()].$set(value[i])
+		let ob = this[i]
+		let item = value[i]
+		if(partial){
+			if(item!==undefined) ob.$set(value[i],true)
+		}else {
+			ob.$set(item)
+		}
+	}
+	for(let i =value.length;i<len;i++){
+		let ob = this[i]
+		Object.defineProperty(this,ob.$index,{enumerable:false,writable:false,configurable:true,value:ob})
 	}
 	for(let i = len,j=value.length;i<j;i++){
 		let item = new Observable(this.$schema.$item,this,i as any as string)
@@ -329,27 +383,52 @@ function setArrayValue(value){
 	}
 	return this
 }
-function updateArrayObservable(evt?:IObservableEvent){
-	if(this.length.$oldValue> this.length.$value){
-		let removes = []
-		for(let i = this.length.$value,j = this.length.$oldValue;i<j;i++) removes.push(this[i]);
-		(evt||(evt={})).removes = removes
-	}else if(this.length.$oldValue< this.length.$value){
-		let appends = []
-		for(let i = this.length.$oldValue,j = this.length.$value;i<j;i++) appends.push(this[i]);
-		(evt||(evt={})).appends = appends
-	}
-	evt = updateObservable.call(this,evt)
-	if(evt && evt.cancel){this.length.$oldValue = this.length.$value; return evt}
-	let lenEvt:IObservableEvent = this.length.$update()
-	let len = this.length.$get()
-	for(let i = 0;i<len;i++) this[i].$update()
-	if(lenEvt){
-		if(lenEvt.old>lenEvt.value){
-			for(let i = len;i<lenEvt.old;i++) {
-				let item = this[i]
-				item.$update({action:'removed'})
+function flushArrayObservable(evt0?:IObservableEvent,partialValue?:any[]){
+	let len
+	let modifies = [],removes
+	if(partialValue) {
+		for(let i in partialValue){
+			let itemValue = partialValue[i]
+			if(itemValue!==undefined) {
+				let item = this[i as any as string]
+				if(item) item.$set(itemValue,true)
 			}
+		}
+	}
+	let evt = evt0 || {}
+	if(this.length.$oldValue> this.length.$value){
+		len = this.length.$value
+		removes=[]
+		for(let i = this.length.$value,j = this.length.$oldValue;i<j;i++){
+			removes.push(this[i]);
+			delete this[i]
+		} 
+		evt.removes = removes
+	}else if(this.length.$oldValue< this.length.$value){
+		len = this.length.$oldValue
+		let appends = []
+		for(let i = this.length.$oldValue,j = this.length.$value;i<j;i++){
+			let newItem = this[i]
+			if(!newItem){
+				newItem = new Observable(this.$schema,this,i as any as string)
+				this[i] = new newItem
+			}
+			appends.push(newItem);
+		} 
+		evt.appends = appends
+	}else {
+		len = this.length.$value
+	}
+	for(let i = 0;i<len;i++) modifies.push(this[i])
+	evt.modifies = modifies
+	evt = flushObservable.call(this,evt0===null?null:evt)
+	
+	let lenEvt:IObservableEvent = this.length.$flush(evt0===null?null:undefined)
+	if((evt&&evt.cancel) || (lenEvt && lenEvt.cancel)) evt =null
+	for(let i = 0;i<len;i++) modifies[i].$flush(evt===null?null:undefined)
+	if(removes){
+		for(let i = 0;i<removes.length;i++) {
+			removes[i].$flush({action:'removed'})
 		}
 	}
 	return evt

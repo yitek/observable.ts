@@ -148,18 +148,23 @@ function handleLoop(vnode:IVirtualNode,context:IRenderContext,returnElem?:boolea
 	Object.defineProperty(anchor,'$__mvc.for.anchor__',{enumerable:false,configurable:true,writable:true,value:items})
 	function loop(each,asSchema:Schema,length){
 		if(scope[asSchema.$name]) throw new Error('loop array is in use')
-		for(let i = 0;i<length;i++){
+		for(let i = 0;i<length;i++)((i)=>{
 			let item = each[i]
 			if(item instanceof Observable) {
 				scope[asSchema.$name] = item
 			}else {
-				scope[asSchema.$name] = new Observable(asSchema,item)
+				item = scope[asSchema.$name] = new Observable(asSchema,item)
 			}
 			vnode.attrs.for = undefined
 			let itemElem = renderVirtualNode(vnode,context,true)
 			vnode.attrs.for = pair
 			items.push(itemElem)
-		}
+			item.$subscribe((e:IObservableEvent)=>{
+				if(e.action==='removed'){
+					DomApi.remove(itemElem)
+				}
+			})
+		})(i)
 		scope[asSchema.$name] = undefined
 
 
@@ -173,27 +178,24 @@ function handleLoop(vnode:IVirtualNode,context:IRenderContext,returnElem?:boolea
 	if(value instanceof Observable){
 		length = (value as any).length.$get()
 		value.$subscribe((e:IObservableEvent)=>{
-			if(e.removes){
-				if(e.appends) throw new Error('appends and removes cannot be setted at same time')
-				for(let i in e.removes){
-					let itemElem = items.pop()
-					DomApi.remove(itemElem)
-				}
-			}else {
-				if(e.appends){
-					if(scope[asSchema.$name]) throw new Error('loop array is in use')
-					vnode.attrs.for = undefined
-					for(let item of e.appends){
-						scope[asSchema.$name] = item
-						let itemElem = renderVirtualNode(vnode,context,true)
-						items.push(itemElem)
-						DomApi.insertBefore(itemElem,anchor)
-					}
-					scope[asSchema.$name] = undefined
-					vnode.attrs.for = pair
-				}
+			if(e.appends){
+				if(scope[asSchema.$name]) throw new Error('loop array is in use')
+				vnode.attrs.for = undefined
+				for(let item of e.appends)((item)=>{
+					scope[asSchema.$name] = item
+					let itemElem = renderVirtualNode(vnode,context,true)
+					items.push(itemElem)
+					DomApi.insertBefore(itemElem,anchor)
+					item.$subscribe((e:IObservableEvent)=>{
+						if(e.action==='removed'){
+							DomApi.remove(itemElem)
+						}
+					})
+				})(item)
+				scope[asSchema.$name] = undefined
+				vnode.attrs.for = pair
 			}
-			e.cancel = true
+			//e.cancel = true
 		})
 	}
 	loop(value,asSchema,length)
@@ -242,8 +244,11 @@ function renderDomElement(vnode:IVirtualNode,context:IRenderContext,returnElem?:
 }
 function bindDomElementEvent(elem:any,evtName:string,handler:Function,context:IRenderContext){
 	DomApi.attachEvent(elem,evtName,(e)=>{
-		handler.call(context.controller,context.states,elem)
-		context.scope['$__mvc.states__'].$set(context.states).$update()
+		let ret = handler.call(context.controller,context.states,elem)
+		let states = context.scope['$__mvc.states__']
+		if(!ret) {
+			states.$set(context.states).$flush()
+		}else states.$flush(undefined,ret)
 	})
 }
 function bindDomElementAttr(elem:any,name:string,value:any,context:IRenderContext){
@@ -316,19 +321,10 @@ function DomValueBinder(elem:any,value:Observable,bibind?:boolean){
 	}
 	if(bibind){
 		DomApi.attachEvent(elem,'blur',()=>{
-			value.$set(elem.value)
-			value.$update()
+			value.$flush(undefined,elem.value)
 		})
 		DomApi.attachEvent(elem,'change',()=>{
-			value.$set(elem.value)
-			value.$update()
+			value.$flush(undefined,elem.value)
 		})
 	}
 }
-function DomBindBinder(elem:any, value:Observable){
-	
-}
-
-
-
-

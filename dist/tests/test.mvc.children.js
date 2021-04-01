@@ -4,7 +4,7 @@ define(["require", "exports", "../mvc"], function (require, exports, mvc_1) {
     function view(states) {
         function output(states) {
             states.output = undefined;
-            states.output = JSON.stringify(states);
+            states.output = JSON.stringify(states, null, '\t');
         }
         return mvc_1.virtualNode("fieldset", null,
             mvc_1.virtualNode("legend", null, states.title),
@@ -19,7 +19,7 @@ define(["require", "exports", "../mvc"], function (require, exports, mvc_1) {
                         mvc_1.virtualNode("option", { value: "female" }, "female"))),
                 mvc_1.virtualNode("div", null,
                     mvc_1.virtualNode("input", { type: "button", value: "\u8F93\u51FA", onclick: output })),
-                mvc_1.virtualNode("textarea", { cols: "80", rows: "40" }, states.output)));
+                mvc_1.virtualNode("pre", null, states.output)));
     }
     debugger;
     var tmpl = new mvc_1.Template(view);

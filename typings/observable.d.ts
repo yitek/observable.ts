@@ -28,6 +28,7 @@ export declare class Schema implements ISchema {
     $createBuilder(): any;
     $resolveFromScope(scope: Scope): any;
 }
+export declare function delay(task: any): void;
 declare enum ObservableGetterTypes {
     newest = 0,
     old = 1,
@@ -38,8 +39,10 @@ export interface IObservableEvent {
     old?: any;
     cancel?: boolean;
     sender?: Observable;
+    action?: string;
     appends?: Observable[];
     removes?: Observable[];
+    modifies?: Observable[];
 }
 export declare class Observable {
     $schema: Schema;
@@ -47,11 +50,11 @@ export declare class Observable {
     $owner: Observable;
     $value: any;
     $oldValue: any;
-    private $__valuechanges__;
+    private $__observers__;
     constructor(schema: any, parentOrValue?: any, index?: string);
     $get(getterType?: ObservableGetterTypes): any;
-    $set(value: any): Observable;
-    $update(evt?: IObservableEvent): any;
+    $set(value: any, partial?: boolean): Observable;
+    $flush(evt?: any, partialValue?: any): any;
     $subscribe(handler: (evt: any) => any, disposable?: any): any;
     $unsubscribe(handler: (evt: any) => any): any;
 }

@@ -9,8 +9,12 @@ function view(states:any){
 	function remove(states,elem){
 		states.genders.shift()
 	}
+	function inspect(states,elem){
+		states.json = undefined;
+		states.json = JSON.stringify(states,null,'\t')
+	}
 	let item:any =variable('item')
-	return <div><select bind={states.gender}><option for={{each:states.genders, as:item }} value={item.value}>{item.text}</option></select><button onclick={append}>追加</button><button onclick={remove}>删除</button></div>
+	return <div><select bind={states.gender}><option for={{each:states.genders, as:item }} value={item.value}>{item.text}</option></select><button onclick={append}>追加</button><button onclick={remove}>删除</button><button onclick={inspect}>inspect</button><br /><pre>{states.json}</pre></div>
 }
 debugger
 let tmpl = new Template(view)

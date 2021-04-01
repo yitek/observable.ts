@@ -6,7 +6,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 exports.__esModule = true;
-exports.Scope = exports.Observable = exports.Schema = exports.implicit = exports.is_int = exports.is_array = void 0;
+exports.Scope = exports.Observable = exports.delay = exports.Schema = exports.implicit = exports.is_int = exports.is_array = void 0;
 function is_array(o) { return Object.prototype.toString.call(o) === '[object Array]'; }
 exports.is_array = is_array;
 var intRegx = /^\s*[0-9]+\s*$/g;
@@ -160,61 +160,46 @@ var schemaBuilderHandlers = {
         throw new Error('schema的构造阶段不允许设置值');
     }
 };
+var delayTasks = [];
+var delayTimer;
+function delay(task) {
+    if (!delayTimer)
+        delayTimer = setTimeout(function () {
+            while (delayTasks.length) {
+                var task_1 = delayTasks.shift();
+                task_1();
+            }
+            delayTimer = 0;
+        }, 0);
+}
+exports.delay = delay;
 var ObservableGetterTypes;
 (function (ObservableGetterTypes) {
     ObservableGetterTypes[ObservableGetterTypes["newest"] = 0] = "newest";
     ObservableGetterTypes[ObservableGetterTypes["old"] = 1] = "old";
     ObservableGetterTypes[ObservableGetterTypes["raw"] = 2] = "raw";
 })(ObservableGetterTypes || (ObservableGetterTypes = {}));
-function getValue(getterType) {
-    if (getterType === undefined || getterType === ObservableGetterTypes.newest)
-        return this.$value;
-    if (getterType === ObservableGetterTypes.old)
-        return this.$oldValue;
-    if (this.$owner) {
-        var target = this.$owner.$get(ObservableGetterTypes.raw);
-        return target[this.$schema.$name];
-    }
-}
-function setValue(value) {
-    this.$value = value;
-    return this;
-}
 function notify(evt) {
-    if (this.$__valuechanges__) {
-        for (var i = 0, j = this.$__valuechanges__.length; i < j; i++) {
-            if (this.$__valuechanges__[i].call(this, evt) === false)
-                return evt;
+    if (this.$__observers__) {
+        for (var i = 0, j = this.$__observers__.length; i < j; i++) {
+            if (this.$__observers__[i].call(this, evt) === false)
+                return this;
         }
     }
-    return evt;
+    return this;
 }
 function subscribe(handler) {
-    (this.$__valuechanges__ || (this.$__valuechanges__ = [])).push(handler);
+    (this.$__observers__ || (this.$__observers__ = [])).push(handler);
     return this;
 }
 function unsibscribe(handler) {
-    if (this.$__valuechanges__)
-        for (var i = 0, j = this.$__valuechanges__.length; i < j; i++) {
-            var existed = this.$__valuechanges__.shift();
+    if (this.$__observers__)
+        for (var i = 0, j = this.$__observers__.length; i < j; i++) {
+            var existed = this.$__observers__.shift();
             if (existed !== handler)
-                this.$__valuechanges__.push(handler);
+                this.$__observers__.push(handler);
         }
     return this;
-}
-function updateObservable(evt) {
-    if (this.$value == this.$oldValue && !evt)
-        return;
-    if (!evt)
-        evt = {};
-    evt.old = this.$oldValue;
-    evt.value = this.$value;
-    evt.sender = this;
-    this.$oldValue = this.$value;
-    if (this.$owner)
-        this.$owner.$get()[this.$schema.$name] = this.$value;
-    notify.call(this, evt);
-    return evt;
 }
 var Observable = /** @class */ (function () {
     function Observable(schema, parentOrValue, index) {
@@ -245,8 +230,8 @@ var Observable = /** @class */ (function () {
             '$index': index,
             '$get': this.$get,
             '$set': this.$set,
-            '$update': this.$update,
-            '$__valuechanges__': undefined
+            '$flush': this.$flush,
+            '$__observers__': undefined
         });
         if (schema.$type === ObservableTypes.object) {
             initObjectObservable.call(this);
@@ -256,13 +241,13 @@ var Observable = /** @class */ (function () {
         }
     }
     Observable.prototype.$get = function (getterType) {
-        return getValue.call(this, getterType);
+        return getValueObservable.call(this, getterType);
     };
-    Observable.prototype.$set = function (value) {
-        return setValue.call(this, value);
+    Observable.prototype.$set = function (value, partial) {
+        return setValueObservable.call(this, value, partial);
     };
-    Observable.prototype.$update = function (evt) {
-        return updateObservable.call(this, evt);
+    Observable.prototype.$flush = function (evt, partialValue) {
+        return flushObservable.call(this, evt, partialValue);
     };
     Observable.prototype.$subscribe = function (handler, disposable) {
         return subscribe.call(this, handler);
@@ -273,12 +258,46 @@ var Observable = /** @class */ (function () {
     return Observable;
 }());
 exports.Observable = Observable;
+function getValueObservable(getterType) {
+    if (getterType === undefined || getterType === ObservableGetterTypes.newest)
+        return this.$value;
+    if (getterType === ObservableGetterTypes.old)
+        return this.$oldValue;
+    if (this.$owner) {
+        var target = this.$owner.$get(ObservableGetterTypes.raw);
+        return target[this.$schema.$name];
+    }
+}
+function setValueObservable(value, partial) {
+    if (value !== this.$oldValue) {
+        this.$value = value;
+    }
+    return this;
+}
+function flushObservable(evt, partialValue) {
+    var old = this.$oldValue;
+    if (partialValue !== undefined)
+        this.$value = partialValue;
+    if ((!evt || evt.action !== 'removed') && this.$owner)
+        this.$oldValue = this.$owner.$value[this.$index] = this.$value;
+    if (this.$value === old && !evt)
+        return;
+    if (evt === null)
+        return;
+    if (!evt)
+        evt = {};
+    evt.old = old;
+    evt.value = this.$value;
+    evt.sender = this;
+    notify.call(this, evt);
+    return evt;
+}
 implicit(Observable.prototype, {
-    '$get': getValue, '$set': setValue, '$update': updateObservable, '$subscribe': subscribe, '$unsubscribe': unsibscribe
+    '$get': getValueObservable, '$set': setValueObservable, '$flush': flushObservable, '$subscribe': subscribe, '$unsubscribe': unsibscribe
 });
 function initObjectObservable() {
-    this.$set = setObjectValue;
-    this.$update = updateObjectObservable;
+    this.$set = setObjectObservable;
+    this.$flush = flushObjectObservable;
     if (!this.$value) {
         this.$value = {};
         if (this.$owner)
@@ -289,23 +308,46 @@ function initObjectObservable() {
         Object.defineProperty(this, name, { enumerable: true, writable: false, configurable: false, value: prop });
     }
 }
-function setObjectValue(value) {
+function setObjectObservable(value, partial) {
     value = this.$value = value || {};
-    for (var name in this)
-        this[name].$set(value[name]);
+    if (partial) {
+        for (var name in value) {
+            var ob = this[name];
+            if (ob)
+                ob.$set(value[name], true);
+        }
+    }
+    else {
+        for (var name in this)
+            this[name].$set(value[name]);
+    }
     return this;
 }
-function updateObjectObservable(evt) {
-    evt = updateObservable.call(this, evt);
-    if (evt && evt.cancel)
+function flushObjectObservable(evt, partialValue) {
+    if (partialValue) {
+        for (var n in partialValue) {
+            var ob = this[n];
+            if (ob)
+                ob.$set(partialValue[n], true);
+        }
+        evt = flushObservable.call(this, evt);
+        for (var name in partialValue) {
+            var ob = this[name];
+            if (ob)
+                ob.$flush(evt === null ? null : undefined, partialValue[name]);
+        }
         return evt;
-    for (var name in this)
-        this[name].$update();
-    return evt;
+    }
+    else {
+        var evt1 = flushObservable.call(this, evt);
+        for (var name in this)
+            this[name].$flush((evt1 && evt1.cancel) ? null : undefined);
+        return evt;
+    }
 }
 function initArrayObservable() {
-    this.$set = setArrayValue;
-    this.$update = updateArrayObservable;
+    this.$set = setArrayObservable;
+    this.$flush = flushArrayObservable;
     if (!this.$value) {
         this.$value = [];
         if (this.$owner)
@@ -315,7 +357,9 @@ function initArrayObservable() {
     var length = new Observable(lengthSchema, this);
     length.$set = function (value) {
         value = parseInt(value) || 0;
-        this.$value = this.$owner.$value.length = value;
+        if (value !== this.$oldValue) {
+            this.$value = this.$owner.$value.length = value;
+        }
         return this;
     };
     Object.defineProperty(this, 'length', { enumerable: false, writable: false, configurable: true, value: length });
@@ -324,12 +368,24 @@ function initArrayObservable() {
         Object.defineProperty(this, item.$index, { enumerable: true, writable: false, configurable: true, value: item });
     }
 }
-function setArrayValue(value) {
+function setArrayObservable(value, partial) {
     value = this.$value = value || [];
     var len = this.length.$get();
     this.length.$set(value.length);
     for (var i = 0, j = len; i < j; i++) {
-        this[i.toString()].$set(value[i]);
+        var ob = this[i];
+        var item = value[i];
+        if (partial) {
+            if (item !== undefined)
+                ob.$set(value[i], true);
+        }
+        else {
+            ob.$set(item);
+        }
+    }
+    for (var i = value.length; i < len; i++) {
+        var ob = this[i];
+        Object.defineProperty(this, ob.$index, { enumerable: false, writable: false, configurable: true, value: ob });
     }
     for (var i = len, j = value.length; i < j; i++) {
         var item = new Observable(this.$schema.$item, this, i);
@@ -337,34 +393,57 @@ function setArrayValue(value) {
     }
     return this;
 }
-function updateArrayObservable(evt) {
+function flushArrayObservable(evt0, partialValue) {
+    var len;
+    var modifies = [], removes;
+    if (partialValue) {
+        for (var i in partialValue) {
+            var itemValue = partialValue[i];
+            if (itemValue !== undefined) {
+                var item = this[i];
+                if (item)
+                    item.$set(itemValue, true);
+            }
+        }
+    }
+    var evt = evt0 || {};
     if (this.length.$oldValue > this.length.$value) {
-        var removes = [];
-        for (var i = this.length.$value, j = this.length.$oldValue; i < j; i++)
+        len = this.length.$value;
+        removes = [];
+        for (var i = this.length.$value, j = this.length.$oldValue; i < j; i++) {
             removes.push(this[i]);
-        (evt || (evt = {})).removes = removes;
+            delete this[i];
+        }
+        evt.removes = removes;
     }
     else if (this.length.$oldValue < this.length.$value) {
+        len = this.length.$oldValue;
         var appends = [];
-        for (var i = this.length.$oldValue, j = this.length.$value; i < j; i++)
-            appends.push(this[i]);
-        (evt || (evt = {})).appends = appends;
-    }
-    evt = updateObservable.call(this, evt);
-    if (evt && evt.cancel) {
-        this.length.$oldValue = this.length.$value;
-        return evt;
-    }
-    var lenEvt = this.length.$update();
-    var len = this.length.$get();
-    for (var i = 0; i < len; i++)
-        this[i].$update();
-    if (lenEvt) {
-        if (lenEvt.old > lenEvt.value) {
-            for (var i = len; i < lenEvt.old; i++) {
-                var item = this[i];
-                item.$update({ action: 'removed' });
+        for (var i = this.length.$oldValue, j = this.length.$value; i < j; i++) {
+            var newItem = this[i];
+            if (!newItem) {
+                newItem = new Observable(this.$schema, this, i);
+                this[i] = new newItem;
             }
+            appends.push(newItem);
+        }
+        evt.appends = appends;
+    }
+    else {
+        len = this.length.$value;
+    }
+    for (var i = 0; i < len; i++)
+        modifies.push(this[i]);
+    evt.modifies = modifies;
+    evt = flushObservable.call(this, evt0 === null ? null : evt);
+    var lenEvt = this.length.$flush(evt0 === null ? null : undefined);
+    if ((evt && evt.cancel) || (lenEvt && lenEvt.cancel))
+        evt = null;
+    for (var i = 0; i < len; i++)
+        modifies[i].$flush(evt === null ? null : undefined);
+    if (removes) {
+        for (var i = 0; i < removes.length; i++) {
+            removes[i].$flush({ action: 'removed' });
         }
     }
     return evt;
