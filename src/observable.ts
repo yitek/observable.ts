@@ -228,7 +228,7 @@ export class Observable{
 			'$index': index,
 			'$get': this.$get,
 			'$set': this.$set,
-			'$flush': this.$flush,
+			'$update': this.$update,
 			'$__observers__' : undefined
 		})
 
@@ -243,11 +243,11 @@ export class Observable{
 	$get(getterType?:ObservableGetterTypes):any{
 		return getValueObservable.call(this,getterType)
 	}
-	$set(value:any,partial?:boolean):Observable{
-		return setValueObservable.call(this,value,partial)
+	$set(value:any,partial?:boolean,backwrite?:boolean):Observable{
+		return setValueObservable.call(this,value,partial,backwrite)
 	}
-	$flush(evt?:any,partialValue?:any){
-		return flushObservable.call(this,evt,partialValue)
+	$update(partialValue?:any,evt?:IObservableEvent|boolean):IObservableEvent{
+		return updateObservable.call(this,partialValue,evt)
 	}
 	$subscribe(handler:(evt)=>any,disposable?){
 		return subscribe.call(this,handler)
@@ -264,35 +264,35 @@ function getValueObservable(getterType?:ObservableGetterTypes){
 		return target[this.$schema.$name]
 	}
 }
-function setValueObservable(value:any,partial?:boolean){
-	if(value!==this.$oldValue){
-		this.$value = value
-	}
+function setValueObservable(value:any,partial?:boolean,backwrite?:boolean){
+	this.$value = value
+	if(backwrite!==false && this.$super) this.$super.$value[this.$index] = value 
 	
 	return this
 }
-function flushObservable(evt?:IObservableEvent,partialValue?:any){
+function updateObservable(partialValue?:any,evt?:IObservableEvent|boolean){
 	let old = this.$oldValue
-	if(partialValue!==undefined) this.$value = partialValue
-	if((!evt || evt.action!=='removed') && this.$owner)
-		this.$oldValue = this.$owner.$value[this.$index] = 	this.$value;
-	if(this.$value=== old && !evt) return
-	if(evt===null) return
-	if(!evt) evt = {}
-	evt.old = old
-	evt.value = this.$value
-	evt.sender = this
+	if(partialValue!==undefined){
+		this.$value = partialValue
+		if(this.$owner) this.$owner.$value[this.$index] = partialValue
+	} 
+	this.$oldValue = this.$value
+	if(this.$value=== old || evt===false) return
+	if(!evt) evt = {} as IObservableEvent
+	(evt as IObservableEvent).old = old
+	(evt as IObservableEvent).value = this.$value
+	(evt as IObservableEvent).sender = this
 	notify.call(this,evt)
 	
 	return evt
 }
 implicit(Observable.prototype,{
-	'$get':getValueObservable,'$set':setValueObservable,'$flush':flushObservable,'$subscribe':subscribe,'$unsubscribe':unsibscribe
+	'$get':getValueObservable,'$set':setValueObservable,'$update':updateObservable,'$subscribe':subscribe,'$unsubscribe':unsibscribe
 })
 
 function initObjectObservable(){
 	(this as any).$set = setObjectObservable;
-	(this as any).$flush = flushObjectObservable;
+	(this as any).$flush = updateObjectObservable;
 	if(!this.$value) {
 		this.$value = {}
 		if(this.$owner) this.$owner.$get()[this.$schema.$name] = this.$value
@@ -303,34 +303,46 @@ function initObjectObservable(){
 	}
 }
 
-function setObjectObservable(value:any,partial?:boolean){
+function setObjectObservable(value:any,partial?:boolean,backwrite?:boolean){
 	value = this.$value = value || {}
+	if(backwrite!==false && this.$super) this.$super.$value[this.$index] = value
 	if(partial){
 		for(let name in value){
 			let ob = this[name]
-			if(ob) ob.$set(value[name],true)
+			if(ob) ob.$set(value[name],true,false)
 		}
 	}else {
-		for(let name in this) this[name].$set(value[name])
+		for(let name in this) this[name].$set(value[name],undefined,false)
 	}
 	
 	return this
 }
-function flushObjectObservable(evt?:IObservableEvent,partialValue?:any){
+function updateObjectObservable(partialValue?:any,evt0?:IObservableEvent|boolean){
+	let evt:IObservableEvent = evt0 as IObservableEvent
 	if(partialValue){
-		for(let n in partialValue) {
-			let ob = this[n]
-			if(ob) ob.$set(partialValue[n],true)
+		if(evt){
+			for(let name in partialValue) {
+				let ob:Observable = this[name]
+				if(ob) ob.$set(partialValue[name],true,true)
+			}
+			evt = updateObservable.call(this,undefined,evt)
+			if(evt&&!evt.cancel){
+				for(let name in partialValue) {
+					let ob:Observable = this[name]
+					if(ob) ob.$update(undefined,undefined)
+				}
+			}
+			
+			return evt
+		} else {
+			for(let name in partialValue) {
+				let ob:Observable = this[name]
+				if(ob) ob.$update(partialValue[name],evt?.cancel?false:undefined)
+			}
 		}
-		evt = flushObservable.call(this,evt)
-		for(let name in partialValue) {
-			let ob = this[name]
-			if(ob) ob.$flush(evt===null?null:undefined,partialValue[name])
-		}
-		return evt
 	}else{
-		let evt1 = flushObservable.call(this,evt)
-		for(let name in this) this[name].$flush((evt1&&evt1.cancel)?null:undefined)
+		evt = updateObservable.call(this,undefined,evt)
+		for(let name in this) this[name].$update((evt&&evt.cancel)?false:undefined)
 		return evt
 	}
 	
@@ -339,7 +351,7 @@ function flushObjectObservable(evt?:IObservableEvent,partialValue?:any){
 
 function initArrayObservable(){
 	(this as any).$set = setArrayObservable;
-	(this as any).$flush = flushArrayObservable
+	(this as any).$flush = updateArrayObservable
 	if(!this.$value) {
 		this.$value = []
 		if(this.$owner) this.$owner.$get()[this.$schema.$name] = this.$value
@@ -373,7 +385,7 @@ function initArrayObservable(){
 		let item = new Observable(this.$schema.$item,this,i as any as string)
 		Object.defineProperty(this,item.$index,{enumerable:true,writable:false,configurable:true,value:item})
 	}
-	Object.defineProperty(this,'$__length__',{enumerable:false,writable:false,configurable:false,value:this.length.$value})
+	Object.defineProperty(this,'$__length__',{enumerable:false,writable:true,configurable:false,value:this.length.$value})
 }
 
 function setArrayObservable(value:any[],partial?:boolean){
@@ -391,18 +403,19 @@ function setArrayObservable(value:any[],partial?:boolean){
 		}
 		if(value.length>this.length.$value)this.length.$set(value.length)
 	}else{
+		this.length.$set(value.length)
 		this.$value = value
 		for(let i =0;i<value.length;i++){
 			this[i].$set(value[i])			
 		}
-		this.length.$set(value.length)
+		
 	}
 	
 	
 	
 	return this
 }
-function flushArrayObservable(evt0?:IObservableEvent,partialValue?:any[]){
+function updateArrayObservable(evt0?:IObservableEvent,partialValue?:any[]){
 	
 	if(partialValue) {
 		this.$set(partialValue,true)
@@ -437,7 +450,7 @@ function flushArrayObservable(evt0?:IObservableEvent,partialValue?:any[]){
 	let len = Math.min(oldLen,newLen)
 	for(let i = 0;i<len;i++) modifies.push(this[i])
 	evt.modifies = modifies
-	evt = flushObservable.call(this,evt0===null?null:evt)
+	evt = updateObservable.call(this,evt0===null?null:evt)
 	
 	let lenEvt:IObservableEvent = this.length.$flush(evt0===null?null:undefined)
 	if((evt&&evt.cancel) || (lenEvt && lenEvt.cancel)) evt =null

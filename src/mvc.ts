@@ -304,7 +304,7 @@ function DomValueBinder(elem:any,value:Observable,bibind?:boolean){
 	} else if(elem.tagName==='SELECT'){
 		valueElem = elem
 	}else if(elem.tagName==='OPTION'){
-		elem.value = value.$get()
+		valueElem = elem
 		return
 	}else {
 		elem.innerHTML = value.$get()
@@ -321,10 +321,10 @@ function DomValueBinder(elem:any,value:Observable,bibind?:boolean){
 	}
 	if(bibind){
 		DomApi.attachEvent(elem,'blur',()=>{
-			value.$flush(undefined,elem.value)
+			value.$update(undefined,elem.value)
 		})
 		DomApi.attachEvent(elem,'change',()=>{
-			value.$flush(undefined,elem.value)
+			value.$update(undefined,elem.value)
 		})
 	}
 }

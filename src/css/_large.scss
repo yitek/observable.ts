@@ -1,0 +1,39 @@
+$app-header-height:60px;
+$app-header-padding: $app-header-height*0.2; 
+.app{ 
+	width:100%;
+	padding-top:$app-header-height; 
+
+	&>header{ 
+		position:fixed;
+		width:100%;
+		height:$app-header-height;
+		top:0; 
+		left:0;
+		padding:0 $app-header-padding;
+		display: flex; 
+		flex-flow: nowrap row;
+		&>.app-title{
+			flex-grow: 0;
+			height: $app-header-height;
+			line-height: $app-header-height;
+			display: flex;
+			flex-flow: nowrap row;
+			justify-content: flex-start; 
+			
+		}
+		&>.app-actions{
+			flex-grow: 1;
+			height: $app-header-height;
+			display: flex; 
+			flex-flow: nowrap row;
+			justify-content:space-between;
+			
+		}
+		&>.app-login-user{
+			flex-grow: 0;
+			height: $app-header-height;
+			width: $app-header-height;
+		}
+	}
+}

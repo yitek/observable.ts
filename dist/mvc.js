@@ -311,7 +311,7 @@ define(["require", "exports", "observable"], function (require, exports, observa
             valueElem = elem;
         }
         else if (elem.tagName === 'OPTION') {
-            elem.value = value.$get();
+            valueElem = elem;
             return;
         }
         else {
@@ -328,10 +328,10 @@ define(["require", "exports", "observable"], function (require, exports, observa
         }
         if (bibind) {
             DomApi.attachEvent(elem, 'blur', function () {
-                value.$flush(undefined, elem.value);
+                value.$update(undefined, elem.value);
             });
             DomApi.attachEvent(elem, 'change', function () {
-                value.$flush(undefined, elem.value);
+                value.$update(undefined, elem.value);
             });
         }
     }

@@ -51,10 +51,11 @@ export declare class Observable {
     $value: any;
     $oldValue: any;
     private $__observers__;
+    private $__length__;
     constructor(schema: any, parentOrValue?: any, index?: string);
     $get(getterType?: ObservableGetterTypes): any;
-    $set(value: any, partial?: boolean): Observable;
-    $flush(evt?: any, partialValue?: any): any;
+    $set(value: any, partial?: boolean, backwrite?: boolean): Observable;
+    $update(partialValue?: any, evt?: IObservableEvent | boolean): IObservableEvent;
     $subscribe(handler: (evt: any) => any, disposable?: any): any;
     $unsubscribe(handler: (evt: any) => any): any;
 }

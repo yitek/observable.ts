@@ -1,0 +1,7 @@
+{
+  "devDependencies": {
+    "gulp": "^4.0.0",
+    "gulp-sass": "^4.1.0",
+    "gulp-scss": "^1.4.0"
+  }
+}

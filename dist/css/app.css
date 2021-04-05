@@ -1,0 +1,40 @@
+* {
+  font-size: 14px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  box-sizing: border-box; }
+
+li {
+  list-style: none;
+  list-style-position: inside; }
+
+.app {
+  width: 100%;
+  padding-top: 60px; }
+  .app > header {
+    position: fixed;
+    width: 100%;
+    height: 60px;
+    top: 0;
+    left: 0;
+    padding: 0 12px;
+    display: flex;
+    flex-flow: nowrap row; }
+    .app > header > .app-title {
+      flex-grow: 0;
+      height: 60px;
+      line-height: 60px;
+      display: flex;
+      flex-flow: nowrap row;
+      justify-content: flex-start; }
+    .app > header > .app-actions {
+      flex-grow: 1;
+      height: 60px;
+      display: flex;
+      flex-flow: nowrap row;
+      justify-content: space-between; }
+    .app > header > .app-login-user {
+      flex-grow: 0;
+      height: 60px;
+      width: 60px; }

@@ -1,0 +1,63 @@
+@import "settings";
+
+// 超大屏，
+.hg,.xl,.lg,.md,.sm,.xs,.mn{
+	display:none;
+}
+
+.hg-only,.lg-only,.md-only,.sm-only,.xs-only,.mn-only{
+	display: none;
+}
+@media screen and (max-width:$mn) {
+	.mn{
+		display:initial;
+	}
+	.mn-only{
+		display: initial;
+	}
+}
+
+@media screen and (max-width:$xs) {
+	.mn,.xs{
+		display:initial;
+	}
+	.xs-only{display: initial;}
+	
+}
+
+@media screen and (max-width:$sm) {
+	.mn,.xs,.sm{
+		display:initial;
+	}
+	.sm-only{display: initial;}
+}
+
+@media screen and (max-width:$md) {
+	.mn,.xs,.sm,.md{
+		display:initial;
+	}
+	.md-only{display: initial;}
+}
+
+@media screen and (max-width:$lg) {
+	.mn,.xs,.sm,.md,.lg{
+		display:initial;
+	}
+	.lg-only{display: initial;}
+}
+
+
+@media screen and (max-width:$xl) {
+	.mn,.xs,.sm,.md,.lg,.xl{
+		display:initial;
+	}
+	.xl-only{display: initial;}
+}
+
+
+@media screen and (min-width:$xl) {
+	.mn,.xs,.sm,.md,.lg,.xl,.hg{
+		display:initial;
+	}
+	.hg-only{display: initial;}
+}
