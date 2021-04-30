@@ -1,13 +1,54 @@
 
 
-'use strict'
+'use strict;'
+
+/**
+ * 是否是数组
+ *
+ * @export
+ * @param {*} o 要判定的值
+ * @returns 数组返回true,否则返回false
+ */
 export function is_array(o) { return Object.prototype.toString.call(o)==='[object Array]' }
+
+/**
+ * 数组是否包含某元素
+ *
+ * @export
+ * @param {*} arr array like object/数组
+ * @param {*} item 要判定的项值
+ * @returns item在数组种返回true, 否则返回false
+ */
+export function array_contains(arr,item) {
+	if(arr)for(let i = 0,j=arr.length;i<j;i++) { if(arr[i]===item) return true }
+	return false
+}
+
+/**
+ * 从数组中移除某个元素
+ *
+ * @export
+ * @param {*} arr 要移除元素的数组
+ * @param {*} item 要移除的元素
+ * @returns 被移除的元素个数，0表示没有元素被移除
+ */
+export function array_remove(arr,item) {
+	let c = 0;
+	if(arr)for(let i = 0,j=arr.length;i<j;i++) { 
+		let existed = arr.shift();if(item!==existed) {arr.push(existed)} else c++; }
+	return c;
+}
 
 const intRegx = /^\s*[0-9]+\s*$/g
 export function is_int(o) {
 	if(o===undefined || o ===null) return false
 	if(o instanceof Number) return true
 	return intRegx.test(o.toString())
+}
+const trimRegx = /^s+|s+$/gi
+export function trim(o) {
+	if(o===null || o===undefined) return ''
+	return o.toString().replace(trimRegx,'')
 }
 
 export function implicit(target?:any,names?:any){
@@ -278,10 +319,10 @@ function updateObservable(partialValue?:any,evt?:IObservableEvent|boolean){
 	} 
 	this.$oldValue = this.$value
 	if(this.$value=== old || evt===false) return
-	if(!evt) evt = {} as IObservableEvent
-	(evt as IObservableEvent).old = old
-	(evt as IObservableEvent).value = this.$value
-	(evt as IObservableEvent).sender = this
+	if(!evt) evt = {} as IObservableEvent;
+	(evt as IObservableEvent).old = old;
+	(evt as IObservableEvent).value = this.$value;
+	(evt as IObservableEvent).sender = this;
 	notify.call(this,evt)
 	
 	return evt
@@ -292,7 +333,7 @@ implicit(Observable.prototype,{
 
 function initObjectObservable(){
 	(this as any).$set = setObjectObservable;
-	(this as any).$flush = updateObjectObservable;
+	(this as any).$update = updateObjectObservable;
 	if(!this.$value) {
 		this.$value = {}
 		if(this.$owner) this.$owner.$get()[this.$schema.$name] = this.$value
@@ -317,6 +358,7 @@ function setObjectObservable(value:any,partial?:boolean,backwrite?:boolean){
 	
 	return this
 }
+
 function updateObjectObservable(partialValue?:any,evt0?:IObservableEvent|boolean){
 	let evt:IObservableEvent = evt0 as IObservableEvent
 	if(partialValue){
@@ -342,7 +384,7 @@ function updateObjectObservable(partialValue?:any,evt0?:IObservableEvent|boolean
 		}
 	}else{
 		evt = updateObservable.call(this,undefined,evt)
-		for(let name in this) this[name].$update((evt&&evt.cancel)?false:undefined)
+		for(let name in this) this[name].$update(undefined,(evt&&evt.cancel)?false:undefined)
 		return evt
 	}
 	
@@ -351,7 +393,7 @@ function updateObjectObservable(partialValue?:any,evt0?:IObservableEvent|boolean
 
 function initArrayObservable(){
 	(this as any).$set = setArrayObservable;
-	(this as any).$flush = updateArrayObservable
+	(this as any).$update = updateArrayObservable
 	if(!this.$value) {
 		this.$value = []
 		if(this.$owner) this.$owner.$get()[this.$schema.$name] = this.$value
@@ -452,13 +494,13 @@ function updateArrayObservable(evt0?:IObservableEvent,partialValue?:any[]){
 	evt.modifies = modifies
 	evt = updateObservable.call(this,evt0===null?null:evt)
 	
-	let lenEvt:IObservableEvent = this.length.$flush(evt0===null?null:undefined)
+	let lenEvt:IObservableEvent = this.length.$update( evt0===null?null:undefined)
 	if((evt&&evt.cancel) || (lenEvt && lenEvt.cancel)) evt =null
-	for(let i = 0;i<len;i++) modifies[i].$flush(evt===null?null:undefined)
+	for(let i = 0;i<len;i++) modifies[i].$update(evt===null?null:undefined)
 	
 	if(removes){
 		for(let i = 0;i<removes.length;i++) {
-			removes[i].$flush({action:'removed'})
+			removes[i].$update({action:'removed'})
 		}
 	}
 	return evt

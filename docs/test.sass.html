@@ -1,7 +1,7 @@
 <html lang="zh-cn">
 	<head>
 		<meta charset="utf-8" />
-		<link href="../dist/css/fontawesome.css" type="text/css" rel="stylesheet"></link>
+		<link href="../dist/css/all.css" type="text/css" rel="stylesheet"></link>
 		<link href="../dist/css/app.css" type="text/css" rel="stylesheet"></link>
 	</head>
 	<body>
@@ -14,8 +14,8 @@
 				<div class="app-actions">
 					<input type="text" name="keyword" /> 
 				</div>
-				<div class="login-user">
-					<img src="" class="login-user-profile-pic" />
+				<div class="app-login-user">
+					<img src="" class="user-profile-pic" />
 					<ul>
 						<li>个人资料</li>
 						<li>配置</li>
@@ -24,12 +24,12 @@
 				</div>
 			</header>
 			<section class='app-body'>
-				<div class='app-menu'>
-					<div class='app-menu-toggle'>
-
+				<aside >
+					<div class='app-menu-toggle '>
+						<i class="fa fa-bars"></i>
 					</div>
 					<div class='app-menu-scollup'></div>
-					<menu>
+					<menu class='app-menu'>
 						<li>
 							<a>文件</a>
 							<menu>
@@ -51,8 +51,7 @@
 						</li>
 					</menu>
 					<div class='app-menu-scolldown'></div>
-				</div>
-				<aside class='app-aside'></aside>
+				</aside>
 				<div class='app-workarea'>
 					<div class='app-nav'>
 						<ol>

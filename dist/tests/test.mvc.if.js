@@ -3,6 +3,7 @@ define(["require", "exports", "../mvc"], function (require, exports, mvc_1) {
     Object.defineProperty(exports, "__esModule", { value: true });
     function view(model) {
         function output(states) {
+            debugger;
             states.output = undefined;
             states.output = JSON.stringify(states);
         }

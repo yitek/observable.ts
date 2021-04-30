@@ -1,5 +1,31 @@
+/**
+ * 是否是数组
+ *
+ * @export
+ * @param {*} o 要判定的值
+ * @returns 数组返回true,否则返回false
+ */
 export declare function is_array(o: any): boolean;
+/**
+ * 数组是否包含某元素
+ *
+ * @export
+ * @param {*} arr array like object/数组
+ * @param {*} item 要判定的项值
+ * @returns item在数组种返回true, 否则返回false
+ */
+export declare function array_contains(arr: any, item: any): boolean;
+/**
+ * 从数组中移除某个元素
+ *
+ * @export
+ * @param {*} arr 要移除元素的数组
+ * @param {*} item 要移除的元素
+ * @returns 被移除的元素个数，0表示没有元素被移除
+ */
+export declare function array_remove(arr: any, item: any): number;
 export declare function is_int(o: any): boolean;
+export declare function trim(o: any): any;
 export declare function implicit(target?: any, names?: any): any;
 declare enum ObservableTypes {
     value = 0,

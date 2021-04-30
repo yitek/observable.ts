@@ -1,0 +1,16 @@
+<html lang="zh-cn">
+	<head>
+		<meta charset="utf-8" />
+		<script>
+			
+const tokenRegx = /(?:\\\{)|(\{([^\{}]+)\})/gi
+let content = "hello {name}\\{no},your no is {no},name is {name}"
+let data = {name:'yiy',no:1}
+content = content.replace(tokenRegx,(t,t1,sub)=>{
+	if(t==='\\{') return '{'
+	else return data[sub]
+})
+		</script>
+	</head>
+	<body></body>
+</html>

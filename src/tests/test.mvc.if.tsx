@@ -2,10 +2,11 @@ import {virtualNode,template,Template} from '../mvc'
 
 function view(model:any){
 	function output(states){
+		debugger
 		states.output = undefined
 		states.output = JSON.stringify(states)
 	}
-	return <div>
+	return <div> 
 		<select bind={model.visable}><option value="">hide</option><option value="female">show</option></select>
 		<span if={model.visable}>Hello~</span>
 	</div>

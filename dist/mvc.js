@@ -249,10 +249,10 @@ define(["require", "exports", "observable"], function (require, exports, observa
             var ret = handler.call(context.controller, context.states, elem);
             var states = context.scope['$__mvc.states__'];
             if (!ret) {
-                states.$set(context.states).$flush();
+                states.$set(context.states).$update();
             }
             else
-                states.$flush(undefined, ret);
+                states.$update(ret);
         });
     }
     function bindDomElementAttr(elem, name, value, context) {
@@ -328,10 +328,10 @@ define(["require", "exports", "observable"], function (require, exports, observa
         }
         if (bibind) {
             DomApi.attachEvent(elem, 'blur', function () {
-                value.$update(undefined, elem.value);
+                value.$update(elem.value);
             });
             DomApi.attachEvent(elem, 'change', function () {
-                value.$update(undefined, elem.value);
+                value.$update(elem.value);
             });
         }
     }

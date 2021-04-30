@@ -5,10 +5,57 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 define(["require", "exports"], function (require, exports) {
-    'use strict';
+    'use strict;';
+    "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
+    /**
+     * 是否是数组
+     *
+     * @export
+     * @param {*} o 要判定的值
+     * @returns 数组返回true,否则返回false
+     */
     function is_array(o) { return Object.prototype.toString.call(o) === '[object Array]'; }
     exports.is_array = is_array;
+    /**
+     * 数组是否包含某元素
+     *
+     * @export
+     * @param {*} arr array like object/数组
+     * @param {*} item 要判定的项值
+     * @returns item在数组种返回true, 否则返回false
+     */
+    function array_contains(arr, item) {
+        if (arr)
+            for (var i = 0, j = arr.length; i < j; i++) {
+                if (arr[i] === item)
+                    return true;
+            }
+        return false;
+    }
+    exports.array_contains = array_contains;
+    /**
+     * 从数组中移除某个元素
+     *
+     * @export
+     * @param {*} arr 要移除元素的数组
+     * @param {*} item 要移除的元素
+     * @returns 被移除的元素个数，0表示没有元素被移除
+     */
+    function array_remove(arr, item) {
+        var c = 0;
+        if (arr)
+            for (var i = 0, j = arr.length; i < j; i++) {
+                var existed = arr.shift();
+                if (item !== existed) {
+                    arr.push(existed);
+                }
+                else
+                    c++;
+            }
+        return c;
+    }
+    exports.array_remove = array_remove;
     var intRegx = /^\s*[0-9]+\s*$/g;
     function is_int(o) {
         if (o === undefined || o === null)
@@ -18,6 +65,13 @@ define(["require", "exports"], function (require, exports) {
         return intRegx.test(o.toString());
     }
     exports.is_int = is_int;
+    var trimRegx = /^s+|s+$/gi;
+    function trim(o) {
+        if (o === null || o === undefined)
+            return '';
+        return o.toString().replace(trimRegx, '');
+    }
+    exports.trim = trim;
     function implicit(target, names) {
         if (target) {
             if (names) {
@@ -286,7 +340,9 @@ define(["require", "exports"], function (require, exports) {
             return;
         if (!evt)
             evt = {};
-        evt.old = old(evt).value = this.$value(evt).sender = this;
+        evt.old = old;
+        evt.value = this.$value;
+        evt.sender = this;
         notify.call(this, evt);
         return evt;
     }
@@ -295,7 +351,7 @@ define(["require", "exports"], function (require, exports) {
     });
     function initObjectObservable() {
         this.$set = setObjectObservable;
-        this.$flush = updateObjectObservable;
+        this.$update = updateObjectObservable;
         if (!this.$value) {
             this.$value = {};
             if (this.$owner)
@@ -354,13 +410,13 @@ define(["require", "exports"], function (require, exports) {
         else {
             evt = updateObservable.call(this, undefined, evt);
             for (var name_13 in this)
-                this[name_13].$update((evt && evt.cancel) ? false : undefined);
+                this[name_13].$update(undefined, (evt && evt.cancel) ? false : undefined);
             return evt;
         }
     }
     function initArrayObservable() {
         this.$set = setArrayObservable;
-        this.$flush = updateArrayObservable;
+        this.$update = updateArrayObservable;
         if (!this.$value) {
             this.$value = [];
             if (this.$owner)
@@ -459,14 +515,14 @@ define(["require", "exports"], function (require, exports) {
             modifies.push(this[i]);
         evt.modifies = modifies;
         evt = updateObservable.call(this, evt0 === null ? null : evt);
-        var lenEvt = this.length.$flush(evt0 === null ? null : undefined);
+        var lenEvt = this.length.$update(evt0 === null ? null : undefined);
         if ((evt && evt.cancel) || (lenEvt && lenEvt.cancel))
             evt = null;
         for (var i = 0; i < len; i++)
-            modifies[i].$flush(evt === null ? null : undefined);
+            modifies[i].$update(evt === null ? null : undefined);
         if (removes) {
             for (var i = 0; i < removes.length; i++) {
-                removes[i].$flush({ action: 'removed' });
+                removes[i].$update({ action: 'removed' });
             }
         }
         return evt;

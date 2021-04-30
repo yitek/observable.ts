@@ -1,11 +1,17 @@
+$padding:6px;
+$margin:6px;
+$line-height:20px;
+$font-size:14px;
 $app-header-height:60px;
+$app-footer-height:30px;
 $app-header-padding: $app-header-height*0.2; 
+$menu-width:$font-size*16 + $padding;
 .app{ 
-	width:100%;
-	padding-top:$app-header-height; 
-
+	font-size:$font-size;
+	position:relative;
+	margin:0 auto;
 	&>header{ 
-		position:fixed;
+		position:relative;
 		width:100%;
 		height:$app-header-height;
 		top:0; 
@@ -34,6 +40,66 @@ $app-header-padding: $app-header-height*0.2;
 			flex-grow: 0;
 			height: $app-header-height;
 			width: $app-header-height;
+			&>ul{
+				display:none;
+			}
 		}
 	}
+
+	&>.app-body{
+		display: flex;
+		flex-flow: wrap row;
+		padding-top:$app-header-height; 
+		padding-bottom:$app-header-height; 
+		&>.app-menu{
+			width:$menu-width;
+			position:relative;
+		}
+		&>.app-workarea{
+			flex-grow: 1;
+			padding:$padding;
+			&>.app-nav{
+				height:20px;
+				line-height:20px;
+				ol{
+					display: flex;
+					flex-flow:wrap row;
+					&>li{
+						padding-left:10px;
+					}
+				}
+			}
+		}
+	}
+	&>footer{
+		position:fixed;
+		margin:0 auto;
+		bottom:0;
+		height:$app-footer-height;
+	}
+}
+.app-menu{
+	width:$menu-width;
+	li{
+		position:relative;
+		width:$menu-width;
+		line-height: $line-height;
+		margin: $margin;
+		&>a{
+			display:block;
+			height:$line-height;
+		}
+		&:hover>menu{
+			display:block;
+		}
+	}
+	menu{
+		display: none;
+	}
+	&>li>menu menu{
+		position:absolute;
+		left:$menu-width;
+		top:0;
+	}
+	
 }

@@ -936,7 +936,6 @@ function request(opts){
                 xhr.setRequestHeader(n,params.headers[n])
             }
         }
-       
         xhr.open(params.method,url,params.async);
         xhr.send(data);
 
@@ -945,6 +944,9 @@ function request(opts){
     
     
 }
+
+
+
 function makeRequestData(type,data):string{
     if(type==='json') return JSON.stringify(data)
     if(typeof data==='object'){

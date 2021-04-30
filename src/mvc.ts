@@ -247,8 +247,8 @@ function bindDomElementEvent(elem:any,evtName:string,handler:Function,context:IR
 		let ret = handler.call(context.controller,context.states,elem)
 		let states = context.scope['$__mvc.states__']
 		if(!ret) {
-			states.$set(context.states).$flush()
-		}else states.$flush(undefined,ret)
+			states.$set(context.states).$update()
+		}else states.$update(ret)
 	})
 }
 function bindDomElementAttr(elem:any,name:string,value:any,context:IRenderContext){
@@ -321,10 +321,10 @@ function DomValueBinder(elem:any,value:Observable,bibind?:boolean){
 	}
 	if(bibind){
 		DomApi.attachEvent(elem,'blur',()=>{
-			value.$update(undefined,elem.value)
+			value.$update(elem.value)
 		})
 		DomApi.attachEvent(elem,'change',()=>{
-			value.$update(undefined,elem.value)
+			value.$update(elem.value)
 		})
 	}
 }

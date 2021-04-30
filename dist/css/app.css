@@ -10,10 +10,11 @@ li {
   list-style-position: inside; }
 
 .app {
-  width: 100%;
-  padding-top: 60px; }
+  font-size: 14px;
+  position: relative;
+  margin: 0 auto; }
   .app > header {
-    position: fixed;
+    position: relative;
     width: 100%;
     height: 60px;
     top: 0;
@@ -38,3 +39,66 @@ li {
       flex-grow: 0;
       height: 60px;
       width: 60px; }
+      .app > header > .app-login-user > ul {
+        display: none; }
+  .app > .app-body {
+    display: flex;
+    flex-flow: wrap row;
+    padding-top: 60px;
+    padding-bottom: 60px; }
+    .app > .app-body > .app-menu {
+      width: 230px;
+      position: relative; }
+    .app > .app-body > .app-workarea {
+      flex-grow: 1;
+      padding: 6px; }
+      .app > .app-body > .app-workarea > .app-nav {
+        height: 20px;
+        line-height: 20px; }
+        .app > .app-body > .app-workarea > .app-nav ol {
+          display: flex;
+          flex-flow: wrap row; }
+          .app > .app-body > .app-workarea > .app-nav ol > li {
+            padding-left: 10px; }
+  .app > footer {
+    position: fixed;
+    margin: 0 auto;
+    bottom: 0;
+    height: 30px; }
+
+.app-menu {
+  width: 230px; }
+  .app-menu li {
+    position: relative;
+    width: 230px;
+    line-height: 20px;
+    margin: 6px; }
+    .app-menu li > a {
+      display: block;
+      height: 20px; }
+    .app-menu li:hover > menu {
+      display: block; }
+  .app-menu menu {
+    display: none; }
+  .app-menu > li > menu menu {
+    position: absolute;
+    left: 230px;
+    top: 0; }
+
+body {
+  color: #333f4b;
+  background-color: #ECF0F4; }
+
+.app .app-header {
+  background-color: #485969;
+  color: #e1f0ff; }
+
+.app .app-menu {
+  background-color: #94a6b6; }
+
+.app {
+  width: 90%; }
+  .app header {
+    border-radius: 6px;
+    top: 6px;
+    box-shadow: 2px 2px 8px 4px #CFD8DE; }
