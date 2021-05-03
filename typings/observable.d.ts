@@ -16,7 +16,7 @@ export declare function is_array(o: any): boolean;
  */
 export declare function array_contains(arr: any, item: any): boolean;
 /**
- * 从数组中移除某个元素
+ * 从数组中移除某个元素,可以将数组中所有的item移除
  *
  * @export
  * @param {*} arr 要移除元素的数组
@@ -27,7 +27,7 @@ export declare function array_remove(arr: any, item: any): number;
 export declare function is_int(o: any): boolean;
 export declare function trim(o: any): any;
 export declare function implicit(target?: any, names?: any): any;
-declare enum ObservableTypes {
+export declare enum ObservableTypes {
     value = 0,
     object = 1,
     array = 2
@@ -53,6 +53,8 @@ export declare class Schema implements ISchema {
     $asArray(item?: Schema): Schema;
     $createBuilder(): any;
     $resolveFromScope(scope: Scope): any;
+    static BUILDER_TARGET: string;
+    static fromBuilder(builder: any): any;
 }
 export declare function delay(task: any): void;
 declare enum ObservableGetterTypes {

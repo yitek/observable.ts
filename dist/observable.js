@@ -35,7 +35,7 @@ define(["require", "exports"], function (require, exports) {
     }
     exports.array_contains = array_contains;
     /**
-     * 从数组中移除某个元素
+     * 从数组中移除某个元素,可以将数组中所有的item移除
      *
      * @export
      * @param {*} arr 要移除元素的数组
@@ -110,7 +110,7 @@ define(["require", "exports"], function (require, exports) {
         ObservableTypes[ObservableTypes["value"] = 0] = "value";
         ObservableTypes[ObservableTypes["object"] = 1] = "object";
         ObservableTypes[ObservableTypes["array"] = 2] = "array";
-    })(ObservableTypes || (ObservableTypes = {}));
+    })(ObservableTypes = exports.ObservableTypes || (exports.ObservableTypes = {}));
     var Schema = /** @class */ (function () {
         function Schema(name, owner) {
             implicit(this, {
@@ -180,7 +180,18 @@ define(["require", "exports"], function (require, exports) {
             }
             return ob;
         };
+        Schema.fromBuilder = function (builder) {
+            if (!builder)
+                return null;
+            var target = builder[Schema_1.BUILDER_TARGET];
+            if (target)
+                return target;
+            if (builder instanceof Schema_1)
+                return builder;
+            return null;
+        };
         var Schema_1;
+        Schema.BUILDER_TARGET = '$__builder.target__';
         Schema = Schema_1 = __decorate([
             implicit()
         ], Schema);
@@ -189,7 +200,7 @@ define(["require", "exports"], function (require, exports) {
     exports.Schema = Schema;
     var schemaBuilderHandlers = {
         get: function (target, name) {
-            if (name === '$__builder.target__')
+            if (name === Schema.BUILDER_TARGET)
                 return target;
             var prop;
             if (is_int(name)) {

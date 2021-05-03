@@ -1,0 +1,59 @@
+fieldset.unittest{
+	background-color:#efefef;
+	color:#0c0c0c;
+}
+
+fieldset.unittest>legend{
+	font-weight:bold;
+}
+fieldset.unittest>ul.tests{
+	padding:0;
+	margin:0;
+}
+fieldset.unittest>ul.tests>li{
+	padding:7px;
+	margin:10px;
+	list-style:none;
+}
+fieldset.unittest>ul.tests>li>h4{
+	padding:7px;
+	margin:0;
+	font-weight:bold;
+	background-color:#ababab;
+	color:#000;
+}
+fieldset.unittest>ul.tests>li>ol.codes{
+	list-style-position: outside;
+	background-color: #999;
+	color:#eee;
+	list-style:decimal;
+}
+fieldset.unittest>ul.tests>li>ol.codes>li{
+	background-color: #333;
+	color:#eee;
+	font-size:14px;
+	padding-left:7px;
+}
+
+fieldset.unittest>ul.tests>li>ol.codes>li.message>div{
+	color:orange;
+	font-style: oblique;
+	padding-top: 12px;
+}
+
+fieldset.unittest>ul.tests>li>ol.codes>li.code-line>*{
+	display:inline-block;
+	padding:0;
+	margin:0;
+}
+fieldset.unittest>ul.tests>li>ol.codes>li.code-line pre{
+	display:inline-block;
+	padding:0;
+	margin:0;
+}
+fieldset.unittest>ul.tests>li>ol.codes>li.code-line>pre.success{
+	color:green;
+}
+fieldset.unittest>ul.tests>li>ol.codes>li.code-line>pre.fail{
+	color:red;
+}

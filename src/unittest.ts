@@ -1,42 +1,315 @@
-interface IUnittest{
-	group(name:string,testFn:(test:IUnittest)=>any):IUnittest
-	message(content:string):IUnittest
-	eq(exepected:any,actual:any,message?:string):IUnittest
-}
+
+const assertTokenRegx = /\(([^\)]+)\)/gi
+const rtrimRegx = /\s+$/gi
+const trimRegx = /^\s+|\s+$/gi
 const tokenRegx = /(?:\\\{)|(\{([^\{}]+)\})/gi
-export class Unittest implements IUnittest{
-	static replace(content:string,data:any):string{
-		if(content===null || content ===undefined) return ""
-		if(data) return content.toString().replace(tokenRegx,(t,t0,tname)=>data[tname])
-		return content.toString()
+function replace_token(content:string,data:any):string{
+	if(content===null || content ===undefined) return ""
+	if(data) return content.toString().replace(tokenRegx,(t,t0,tname)=>data[tname])
+	return content.toString()
+}
+interface IAssertResult{
+	expected?:any;
+	actual?:any;
+	value?:any;
+	message?:string;
+	assertValue?:boolean;
+	type:Function;
+}
+export class Assert {
+	results:IAssertResult[];
+	constructor(){
+		this.results=[]
 	}
-	group(name:string,testFn:(test:IUnittest)=>any):IUnittest{
-		console.group(name)
-		testFn(this);
-		console.groupEnd()
+	message(content:string,data?:any):Assert{
+		this.results.push({
+			type: Assert.prototype.message,
+			message: replace_token(content,data),
+			assertValue:true
+		})
 		return this;
 	}
-	message(content:string,data?:any):IUnittest{
-		console.log(Unittest.replace(content,data))
+	compare(expected,actual ,message?:string):Assert{
+		let d = {
+			type: Assert.prototype.compare,
+			message: message,
+			expected: JSON.stringify(expected),
+			actual: JSON.stringify(actual),
+			assertValue: compare(expected,actual)
+		}
+		d.message = message?replace_token(message,d):""
+		this.results.push(d)
 		return this;
 	}
-	eq(exepected:any,actual:any,message?:string):IUnittest{
-		if(exepected!==actual) console.error(Unittest.replace(message ||(message = "期望值{expected},实际值为{actual}"),{exepected,actual}))
-		else if(message) console.log(Unittest.replace(message,{exepected,actual}))
-		return this
+	equal(expected,actual,message?:string):Assert{
+		let d = {
+			type: Assert.prototype.equal,
+			message: message,
+			expected: expected,
+			actual: actual,
+			assertValue: expected === actual
+		}
+		d.message = message?replace_token(message,d):""
+		this.results.push(d)
+		return this;
 	}
-	true(value:any,message?:string):IUnittest{
-		if(value!==true) console.error(message ||(message = "期望为true"))
-		else if(message) console.log(message)
-		return this
+	true(value:boolean,message?:string):Assert{
+		let d = {
+			type: Assert.prototype.equal,
+			message: message,
+			value: value,
+			assertValue: value === true
+		}
+		d.message = message?replace_token(message,d):"true"
+		this.results.push(d)
+		return this;
 	}
-	false(value:any,message?:string):IUnittest{
-		if(value!==false) console.error(message ||(message = "期望为false"))
-		else if(message) console.log(message)
-		return this
-	}
-	static instance:IUnittest = new Unittest()
-	static group(name:string,fn:(ut)=>any){
-		return Unittest.instance.group(name,fn)
+	false(value:boolean,message?:string):Assert{
+		let d = {
+			type: Assert.prototype.equal,
+			message: message,
+			value: value,
+			assertValue: value === false
+		}
+		d.message = message?replace_token(message,d):"false"
+		this.results.push(d)
+		return this;
 	}
 }
+for(let n in Assert.prototype) {
+	let afn =Assert.prototype[n]
+	if(typeof afn==='function') afn.toString = ()=>n
+}
+function compare(expected, actual):boolean{
+	if(!expected || !actual) return expected ===actual
+	let t = typeof expected;
+	if(t!=='object') return expected === actual
+	if(typeof expected.push==='function' && expected.length!==undefined){
+		if(expected.length !== actual.length) return false
+		for(let i in expected){
+			if(!compare(expected[i],actual[i])) return false
+		}
+		return true
+	}
+	for(let n in expected){
+		if(!compare(expected[n],actual[n])) return false
+	}
+	for(let n in actual){
+		if(!compare(expected[n],actual[n])) return false
+	}
+	return true
+}
+function makeCodes(fn:Function,as:IAssertResult[]){
+	const codes = fn.toString().split('\n')
+	let line = codes.shift();
+	let match = assertTokenRegx.exec(line)
+	assertTokenRegx.lastIndex = 0
+	if(!match) return false 
+	const assertCodeRegx = new RegExp('^\\s*' + match[1] + '.([a-z]+)\\s*\\(')
+	let cds = []
+	for(let i =0,j=codes.length-1;i<j;i++){
+		line = codes.shift()
+		match = assertCodeRegx.exec(line)
+		if(match){
+			cds.push({tag:"assert",attrs:as.shift()})
+		}else {
+			cds.push(line.replace(rtrimRegx,''))
+		}
+	}
+	return cds
+
+}
+
+class Namespace{
+	tag:string;
+	children:Namespace[]
+	tests:any[]
+	attrs:any
+	constructor(name:string){
+		this.tag = "namespace"
+		this.attrs = {'name':name}
+	}
+	find(subname:string){
+		let arr = this.children
+		if(arr) for(let i=0,j=arr.length;i<j;i++) if(arr[i].attrs?.name===subname) return arr[i]
+	}
+	sub(subname:string){
+		let sub = this.find(subname)
+		if(!sub) {
+			(this.children || (this.children=[])).push(sub = new Namespace(subname))
+		}
+		return sub
+	}
+	test(name:string,des:string|{(assert:Assert):any},fn?:(assert:Assert)=>any):Namespace{
+		if(!fn){
+			if(typeof des ==='function'){
+				fn = des
+				des = undefined
+			}
+		}
+		let assert = new Assert();
+		if(Unittest._auto!==undefined) {
+			Unittest._auto = 1
+			Unittest.auto()
+		}
+		fn(assert)
+		let codes = makeCodes(fn,assert.results);
+		(this.tests || (this.tests=[])).push({
+			tag:'test',
+			attrs:{name:name,description:des},
+			children:codes
+		});
+		return this;
+	}
+}
+export class Unittest{
+	static rootNS:Namespace;
+	static _autoTick:number;
+	static _auto:number;
+	static dom;
+	static auto(auto?:boolean){
+		if(auto!==false){
+			Unittest._auto = 1
+			if(!Unittest._autoTick){
+				let render = ()=>{
+					if(Unittest.rootNS){
+						let dom = Unittest.render(Unittest.rootNS)
+						if(this.render ===DomRender){
+							let body = Unittest.dom || document.body
+							body.appendChild(dom)
+						}
+						Unittest.rootNS = null
+						this._auto = 1000;
+					}else {
+						this._auto += 100;
+						if(this._auto>1000*60+10) {
+							this._auto = 0;
+						}else Unittest._autoTick = setTimeout(render,this._auto)
+					}
+				}
+				Unittest._autoTick = setTimeout(render,this._auto)
+			}
+		}else{
+			Unittest._auto = undefined
+			if(Unittest._autoTick) {
+				clearTimeout(Unittest._autoTick)
+				Unittest._autoTick = 0
+			}
+		}
+		
+		
+	}
+	static namespace(name:string){
+		let ns = name.split('/')
+		let nsNode = Unittest.rootNS || (Unittest.rootNS = new Namespace("#root"))
+		for(let v of ns){
+			nsNode = nsNode.sub(v)
+		}
+		return nsNode
+	}
+	static render:(node?:Namespace)=>any = (node)=>{
+		if(!node)node = Unittest.rootNS
+		console.group(node.attrs.name)
+		if(node.tests){
+			for(let test of node.tests){
+				console.group(test.attrs.name)
+				for(let line of test.children){
+					if(typeof line ==='string') console.log(line.replace(trimRegx,''))
+					else {
+						let attrs = line.attrs
+						if(attrs.assertValue){
+							console.warn(attrs.message,attrs)
+						}else {
+							console.error(attrs.message,attrs)
+						}
+					}
+				}
+				console.groupEnd()
+			}
+		}
+		if(node.children){
+			for(let child of node.children) Unittest.render(child)
+		}
+		console.groupEnd()
+	}
+}
+export function DomRender(node:Namespace){
+	if(!node)node = Unittest.rootNS
+	let nsDom = document.createElement('fieldset')
+	nsDom.className = 'unittest'
+	let caption = document.createElement("legend");nsDom.appendChild(caption)
+	caption.innerHTML = node.attrs.name
+	if(node.tests){
+		let ul = document.createElement('ul');nsDom.appendChild(ul)
+		ul.className = "tests"
+		
+		for(let test of node.tests){
+			let li = document.createElement("li");ul.appendChild(li)
+			li.className = "test"
+			let caption = document.createElement("h4");li.appendChild(caption)
+			caption.innerHTML = test.attrs.name
+			if(test.attrs.description){
+				let des = document.createElement('pre');li.appendChild(des)
+				des.className = 'description'
+				des.innerHTML = test.attrs.description
+			}
+			if(test.children && test.children.length){
+				let codeOL = document.createElement('ol');li.appendChild(codeOL)
+				codeOL.className = "codes"
+				let preLi;
+				for(let line of test.children){
+					let li = makeCodeLi(line)
+					if(li.tagName==='PRE') preLi.appendChild(li)
+					else if(li.tagName==="LI") {
+						codeOL.appendChild(preLi= li)
+					}
+				}
+				let clr = document.createElement("li");codeOL.appendChild(clr)
+				clr.className = 'clr'
+				clr.style.cssText="clear:both";
+			}
+			
+		}
+	}
+	if(node.children){
+		for(let child of node.children){
+			let childDom = Unittest.render(child)
+			nsDom.appendChild(childDom)
+		} 
+	}
+	return nsDom
+}
+function makeCodeLi(code){
+	
+	if(typeof code ==='string') {
+		let li = document.createElement('li');
+		let lineDom = document.createElement("code");li.appendChild(lineDom)
+		let codeDom = document.createElement("pre");lineDom.appendChild(codeDom)
+		li.className = 'code-line'
+		codeDom.innerHTML = code
+		return li
+	}
+	else if(code.attrs.type===Assert.prototype.message){
+		let li = document.createElement('li');
+		let preDom = document.createElement("div");li.appendChild(preDom)
+		li.className = 'message'
+		preDom.innerHTML ='\t/* ' + code.attrs.message +' */'
+		return li
+	}else {
+		
+		let attrs = code.attrs
+		let insDom = document.createElement("pre");
+		insDom.innerHTML = "\t/* " + code.attrs.message + " */"
+		if(attrs.assertValue){
+			insDom.className ='success';
+		}else {
+			insDom.className = 'fail'
+		}
+		return insDom
+	}
+}
+Unittest.render = DomRender
+Unittest.auto()
+
+
+

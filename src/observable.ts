@@ -25,7 +25,7 @@ export function array_contains(arr,item) {
 }
 
 /**
- * 从数组中移除某个元素
+ * 从数组中移除某个元素,可以将数组中所有的item移除
  *
  * @export
  * @param {*} arr 要移除元素的数组
@@ -76,7 +76,7 @@ export function implicit(target?:any,names?:any){
 	}
 }
 
-enum ObservableTypes{
+export enum ObservableTypes{
 	value,
 	object,
 	array
@@ -159,11 +159,20 @@ export class Schema implements ISchema{
 		}
 		return ob
 	}
+
+	static BUILDER_TARGET :string = '$__builder.target__'
+	static fromBuilder(builder){
+		if(!builder) return null
+		let target = builder[Schema.BUILDER_TARGET]
+		if(target) return target
+		if(builder instanceof Schema) return builder
+		return null;
+	}
 }
 
 let schemaBuilderHandlers = {
 	get: function(target,name) {
-		if(name==='$__builder.target__') return target
+		if(name===Schema.BUILDER_TARGET) return target
 		let prop
 		if(is_int(name)) {
 			console.log(target)
