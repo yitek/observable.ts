@@ -2,10 +2,20 @@
 const assertTokenRegx = /\(([^\)]+)\)/gi
 const rtrimRegx = /\s+$/gi
 const trimRegx = /^\s+|\s+$/gi
-const tokenRegx = /(?:\\\{)|(\{([^\{}]+)\})/gi
+//const tokenRegx = /(?:\\\{)|(\{([a-zA-Z_][a-zA-Z0-9_]*(?:.[a-zA-Z_][a-zA-Z0-9_]*)*)\})/gi
+const tokenRegx = /(?:\\\{)|(?:\{(([a-zA-Z_][a-zA-Z0-9_]*)((?:.(?:[a-zA-Z_][a-zA-Z0-9_]*))*))\})/gi
 function replace_token(content:string,data:any):string{
 	if(content===null || content ===undefined) return ""
-	if(data) return content.toString().replace(tokenRegx,(t,t0,tname)=>data[tname])
+	if(data) {
+		return content.toString().replace(tokenRegx,(t,t0,tname,subs)=>{
+			let d = data[tname]
+			if(subs) {
+				subs = subs.split('.')
+				for(let i = 1,j=subs.length;i<j;i++) d = d[subs[i]]
+			}
+			return d
+		})
+	}
 	return content.toString()
 }
 interface IAssertResult{
@@ -80,22 +90,29 @@ for(let n in Assert.prototype) {
 	let afn =Assert.prototype[n]
 	if(typeof afn==='function') afn.toString = ()=>n
 }
-function compare(expected, actual):boolean{
+function array_contains(arr:any[],item:any):boolean{
+	for(let i=0,j=arr.length;i<j;i++) {
+		if(arr[i]===item) return true
+	}
+	return false
+}
+function compare(expected, actual,exactly?:boolean):boolean{
 	if(!expected || !actual) return expected ===actual
 	let t = typeof expected;
 	if(t!=='object') return expected === actual
 	if(typeof expected.push==='function' && expected.length!==undefined){
-		if(expected.length !== actual.length) return false
+		if(exactly && expected.length !== actual.length) return false
+		
 		for(let i in expected){
-			if(!compare(expected[i],actual[i])) return false
+			if(!compare(expected[i],actual[i],exactly)) return false
 		}
 		return true
 	}
 	for(let n in expected){
-		if(!compare(expected[n],actual[n])) return false
+		if(!compare(expected[n],actual[n],exactly)) return false
 	}
-	for(let n in actual){
-		if(!compare(expected[n],actual[n])) return false
+	if(exactly)for(let n in actual){
+		if(!compare(expected[n],actual[n],exactly)) return false
 	}
 	return true
 }

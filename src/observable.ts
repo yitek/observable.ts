@@ -244,7 +244,7 @@ export interface IObservableEvent{
 	removes?:Observable[]
 	modifies?:Observable[]
 }
-
+@implicit()
 export class Observable{
 	$schema:Schema
 	$index: string
@@ -278,7 +278,7 @@ export class Observable{
 			'$index': index,
 			'$get': this.$get,
 			'$set': this.$set,
-			'$update': this.$update,
+			'$update': this.$trigger,
 			'$__observers__' : undefined
 		})
 
@@ -289,15 +289,43 @@ export class Observable{
 		}
 
 	}
-
+	
+	/**
+	 * 获取observable的值
+	 *
+	 * @param {ObservableGetterTypes} [getterType]
+	 * @returns {*}
+	 * @memberof Observable
+	 */
 	$get(getterType?:ObservableGetterTypes):any{
 		return getValueObservable.call(this,getterType)
 	}
-	$set(value:any,partial?:boolean,backwrite?:boolean):Observable{
-		return setValueObservable.call(this,value,partial,backwrite)
+
+	/**
+	 * 设置obbservable的值
+	 *
+	 * @param {*} value 要设置的值
+	 * @param {boolean} [isPartial] 是否是部分设置,默认为false.如果不是部分设置，会将值整个的替换成value的值；如果是部分设置，且value为引用类型，原先的observable的值不会被替换，而是执行copyTo操作，将value参数的成员给observable的值的对应成员做赋值,下级observable赋值也是部分赋值
+	 * @param {boolean} [isBackwrite] 是否要回写value值,默认为false。该参数一般为框架内部使用。当该observable有上级对象，赋值时是否要将上级对象中的对应成员的值替换成当前的value参数的值
+	 * @returns {Observable}
+	 * @memberof Observable
+	 */
+	$set(value:any,isPartial?:boolean,isBackwrite?:boolean):Observable{
+		return setValueObservable.call(this,value,isPartial,isBackwrite)
 	}
-	$update(partialValue?:any,evt?:IObservableEvent|boolean):IObservableEvent{
-		return updateObservable.call(this,partialValue,evt)
+
+	
+	/**
+	 * 触发事件
+	 *
+	 * @param {IObservableEvent} [evt]
+	 * @param {*} [partialValue]
+	 *  * @param {*} [isBackwrite]
+	 * @returns {IObservableEvent}
+	 * @memberof Observable
+	 */
+	$trigger(evt?:IObservableEvent,partialValue?:any,isBackwrite?:boolean):IObservableEvent{
+		return triggerValueObservable.call(this,evt,partialValue,isBackwrite)
 	}
 	$subscribe(handler:(evt)=>any,disposable?){
 		return subscribe.call(this,handler)
@@ -320,7 +348,11 @@ function setValueObservable(value:any,partial?:boolean,backwrite?:boolean){
 	
 	return this
 }
-function updateObservable(partialValue?:any,evt?:IObservableEvent|boolean){
+function triggerValueObservable(evt?:IObservableEvent,partialValue?:any){
+	if(evt===true){
+		evt = partialValue
+		partialValue = undefined
+	}
 	let old = this.$oldValue
 	if(partialValue!==undefined){
 		this.$value = partialValue
@@ -337,7 +369,7 @@ function updateObservable(partialValue?:any,evt?:IObservableEvent|boolean){
 	return evt
 }
 implicit(Observable.prototype,{
-	'$get':getValueObservable,'$set':setValueObservable,'$update':updateObservable,'$subscribe':subscribe,'$unsubscribe':unsibscribe
+	'$get':getValueObservable,'$set':setValueObservable,'$update':triggerValueObservable,'$subscribe':subscribe,'$unsubscribe':unsibscribe
 })
 
 function initObjectObservable(){
@@ -376,11 +408,11 @@ function updateObjectObservable(partialValue?:any,evt0?:IObservableEvent|boolean
 				let ob:Observable = this[name]
 				if(ob) ob.$set(partialValue[name],true,true)
 			}
-			evt = updateObservable.call(this,undefined,evt)
+			evt = triggerValueObservable.call(this,undefined,evt)
 			if(evt&&!evt.cancel){
 				for(let name in partialValue) {
 					let ob:Observable = this[name]
-					if(ob) ob.$update(undefined,undefined)
+					if(ob) ob.$trigger(undefined,undefined)
 				}
 			}
 			
@@ -388,11 +420,11 @@ function updateObjectObservable(partialValue?:any,evt0?:IObservableEvent|boolean
 		} else {
 			for(let name in partialValue) {
 				let ob:Observable = this[name]
-				if(ob) ob.$update(partialValue[name],evt?.cancel?false:undefined)
+				if(ob) ob.$trigger(partialValue[name],evt?.cancel?false:undefined)
 			}
 		}
 	}else{
-		evt = updateObservable.call(this,undefined,evt)
+		evt = triggerValueObservable.call(this,undefined,evt)
 		for(let name in this) this[name].$update(undefined,(evt&&evt.cancel)?false:undefined)
 		return evt
 	}
@@ -501,7 +533,7 @@ function updateArrayObservable(evt0?:IObservableEvent,partialValue?:any[]){
 	let len = Math.min(oldLen,newLen)
 	for(let i = 0;i<len;i++) modifies.push(this[i])
 	evt.modifies = modifies
-	evt = updateObservable.call(this,evt0===null?null:evt)
+	evt = triggerValueObservable.call(this,evt0===null?null:evt)
 	
 	let lenEvt:IObservableEvent = this.length.$update( evt0===null?null:undefined)
 	if((evt&&evt.cancel) || (lenEvt && lenEvt.cancel)) evt =null

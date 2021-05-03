@@ -4,12 +4,22 @@ define(["require", "exports"], function (require, exports) {
     var assertTokenRegx = /\(([^\)]+)\)/gi;
     var rtrimRegx = /\s+$/gi;
     var trimRegx = /^\s+|\s+$/gi;
-    var tokenRegx = /(?:\\\{)|(\{([^\{}]+)\})/gi;
+    //const tokenRegx = /(?:\\\{)|(\{([a-zA-Z_][a-zA-Z0-9_]*(?:.[a-zA-Z_][a-zA-Z0-9_]*)*)\})/gi
+    var tokenRegx = /(?:\\\{)|(?:\{(([a-zA-Z_][a-zA-Z0-9_]*)((?:.(?:[a-zA-Z_][a-zA-Z0-9_]*))*))\})/gi;
     function replace_token(content, data) {
         if (content === null || content === undefined)
             return "";
-        if (data)
-            return content.toString().replace(tokenRegx, function (t, t0, tname) { return data[tname]; });
+        if (data) {
+            return content.toString().replace(tokenRegx, function (t, t0, tname, subs) {
+                var d = data[tname];
+                if (subs) {
+                    subs = subs.split('.');
+                    for (var i = 1, j = subs.length; i < j; i++)
+                        d = d[subs[i]];
+                }
+                return d;
+            });
+        }
         return content.toString();
     }
     var Assert = /** @class */ (function () {
@@ -81,29 +91,37 @@ define(["require", "exports"], function (require, exports) {
     for (var n in Assert.prototype) {
         _loop_1(n);
     }
-    function compare(expected, actual) {
+    function array_contains(arr, item) {
+        for (var i = 0, j = arr.length; i < j; i++) {
+            if (arr[i] === item)
+                return true;
+        }
+        return false;
+    }
+    function compare(expected, actual, exactly) {
         if (!expected || !actual)
             return expected === actual;
         var t = typeof expected;
         if (t !== 'object')
             return expected === actual;
         if (typeof expected.push === 'function' && expected.length !== undefined) {
-            if (expected.length !== actual.length)
+            if (exactly && expected.length !== actual.length)
                 return false;
             for (var i in expected) {
-                if (!compare(expected[i], actual[i]))
+                if (!compare(expected[i], actual[i], exactly))
                     return false;
             }
             return true;
         }
         for (var n in expected) {
-            if (!compare(expected[n], actual[n]))
+            if (!compare(expected[n], actual[n], exactly))
                 return false;
         }
-        for (var n in actual) {
-            if (!compare(expected[n], actual[n]))
-                return false;
-        }
+        if (exactly)
+            for (var n in actual) {
+                if (!compare(expected[n], actual[n], exactly))
+                    return false;
+            }
         return true;
     }
     function makeCodes(fn, as) {

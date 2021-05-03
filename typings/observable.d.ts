@@ -81,9 +81,34 @@ export declare class Observable {
     private $__observers__;
     private $__length__;
     constructor(schema: any, parentOrValue?: any, index?: string);
+    /**
+     * 获取observable的值
+     *
+     * @param {ObservableGetterTypes} [getterType]
+     * @returns {*}
+     * @memberof Observable
+     */
     $get(getterType?: ObservableGetterTypes): any;
-    $set(value: any, partial?: boolean, backwrite?: boolean): Observable;
-    $update(partialValue?: any, evt?: IObservableEvent | boolean): IObservableEvent;
+    /**
+     * 设置obbservable的值
+     *
+     * @param {*} value 要设置的值
+     * @param {boolean} [isPartial] 是否是部分设置,默认为false.如果不是部分设置，会将值整个的替换成value的值；如果是部分设置，且value为引用类型，原先的observable的值不会被替换，而是执行copyTo操作，将value参数的成员给observable的值的对应成员做赋值,下级observable赋值也是部分赋值
+     * @param {boolean} [isBackwrite] 是否要回写value值,默认为false。该参数一般为框架内部使用。当该observable有上级对象，赋值时是否要将上级对象中的对应成员的值替换成当前的value参数的值
+     * @returns {Observable}
+     * @memberof Observable
+     */
+    $set(value: any, isPartial?: boolean, isBackwrite?: boolean): Observable;
+    /**
+     * 触发事件
+     *
+     * @param {IObservableEvent} [evt]
+     * @param {*} [partialValue]
+     *  * @param {*} [isBackwrite]
+     * @returns {IObservableEvent}
+     * @memberof Observable
+     */
+    $trigger(evt?: IObservableEvent, partialValue?: any, isBackwrite?: boolean): IObservableEvent;
     $subscribe(handler: (evt: any) => any, disposable?: any): any;
     $unsubscribe(handler: (evt: any) => any): any;
 }

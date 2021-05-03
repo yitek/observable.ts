@@ -270,7 +270,7 @@ define(["require", "exports"], function (require, exports) {
         function Observable(schema, parentOrValue, index) {
             var owner, value, old;
             if (schema instanceof Schema) {
-                if (parentOrValue instanceof Observable) {
+                if (parentOrValue instanceof Observable_1) {
                     owner = parentOrValue;
                     index = (index === undefined || index === null) ? schema.$name : index;
                     old = value = owner.$value[index];
@@ -295,7 +295,7 @@ define(["require", "exports"], function (require, exports) {
                 '$index': index,
                 '$get': this.$get,
                 '$set': this.$set,
-                '$update': this.$update,
+                '$update': this.$trigger,
                 '$__observers__': undefined
             });
             if (schema.$type === ObservableTypes.object) {
@@ -305,14 +305,40 @@ define(["require", "exports"], function (require, exports) {
                 initArrayObservable.call(this);
             }
         }
+        Observable_1 = Observable;
+        /**
+         * 获取observable的值
+         *
+         * @param {ObservableGetterTypes} [getterType]
+         * @returns {*}
+         * @memberof Observable
+         */
         Observable.prototype.$get = function (getterType) {
             return getValueObservable.call(this, getterType);
         };
-        Observable.prototype.$set = function (value, partial, backwrite) {
-            return setValueObservable.call(this, value, partial, backwrite);
+        /**
+         * 设置obbservable的值
+         *
+         * @param {*} value 要设置的值
+         * @param {boolean} [isPartial] 是否是部分设置,默认为false.如果不是部分设置，会将值整个的替换成value的值；如果是部分设置，且value为引用类型，原先的observable的值不会被替换，而是执行copyTo操作，将value参数的成员给observable的值的对应成员做赋值,下级observable赋值也是部分赋值
+         * @param {boolean} [isBackwrite] 是否要回写value值,默认为false。该参数一般为框架内部使用。当该observable有上级对象，赋值时是否要将上级对象中的对应成员的值替换成当前的value参数的值
+         * @returns {Observable}
+         * @memberof Observable
+         */
+        Observable.prototype.$set = function (value, isPartial, isBackwrite) {
+            return setValueObservable.call(this, value, isPartial, isBackwrite);
         };
-        Observable.prototype.$update = function (partialValue, evt) {
-            return updateObservable.call(this, partialValue, evt);
+        /**
+         * 触发事件
+         *
+         * @param {IObservableEvent} [evt]
+         * @param {*} [partialValue]
+         *  * @param {*} [isBackwrite]
+         * @returns {IObservableEvent}
+         * @memberof Observable
+         */
+        Observable.prototype.$trigger = function (evt, partialValue, isBackwrite) {
+            return triggerValueObservable.call(this, evt, partialValue, isBackwrite);
         };
         Observable.prototype.$subscribe = function (handler, disposable) {
             return subscribe.call(this, handler);
@@ -320,6 +346,10 @@ define(["require", "exports"], function (require, exports) {
         Observable.prototype.$unsubscribe = function (handler) {
             return unsibscribe.call(this, handler);
         };
+        var Observable_1;
+        Observable = Observable_1 = __decorate([
+            implicit()
+        ], Observable);
         return Observable;
     }());
     exports.Observable = Observable;
@@ -339,7 +369,11 @@ define(["require", "exports"], function (require, exports) {
             this.$super.$value[this.$index] = value;
         return this;
     }
-    function updateObservable(partialValue, evt) {
+    function triggerValueObservable(evt, partialValue) {
+        if (evt === true) {
+            evt = partialValue;
+            partialValue = undefined;
+        }
         var old = this.$oldValue;
         if (partialValue !== undefined) {
             this.$value = partialValue;
@@ -358,7 +392,7 @@ define(["require", "exports"], function (require, exports) {
         return evt;
     }
     implicit(Observable.prototype, {
-        '$get': getValueObservable, '$set': setValueObservable, '$update': updateObservable, '$subscribe': subscribe, '$unsubscribe': unsibscribe
+        '$get': getValueObservable, '$set': setValueObservable, '$update': triggerValueObservable, '$subscribe': subscribe, '$unsubscribe': unsibscribe
     });
     function initObjectObservable() {
         this.$set = setObjectObservable;
@@ -400,12 +434,12 @@ define(["require", "exports"], function (require, exports) {
                     if (ob)
                         ob.$set(partialValue[name_10], true, true);
                 }
-                evt = updateObservable.call(this, undefined, evt);
+                evt = triggerValueObservable.call(this, undefined, evt);
                 if (evt && !evt.cancel) {
                     for (var name_11 in partialValue) {
                         var ob = this[name_11];
                         if (ob)
-                            ob.$update(undefined, undefined);
+                            ob.$trigger(undefined, undefined);
                     }
                 }
                 return evt;
@@ -414,12 +448,12 @@ define(["require", "exports"], function (require, exports) {
                 for (var name_12 in partialValue) {
                     var ob = this[name_12];
                     if (ob)
-                        ob.$update(partialValue[name_12], ((_a = evt) === null || _a === void 0 ? void 0 : _a.cancel) ? false : undefined);
+                        ob.$trigger(partialValue[name_12], ((_a = evt) === null || _a === void 0 ? void 0 : _a.cancel) ? false : undefined);
                 }
             }
         }
         else {
-            evt = updateObservable.call(this, undefined, evt);
+            evt = triggerValueObservable.call(this, undefined, evt);
             for (var name_13 in this)
                 this[name_13].$update(undefined, (evt && evt.cancel) ? false : undefined);
             return evt;
@@ -525,7 +559,7 @@ define(["require", "exports"], function (require, exports) {
         for (var i = 0; i < len; i++)
             modifies.push(this[i]);
         evt.modifies = modifies;
-        evt = updateObservable.call(this, evt0 === null ? null : evt);
+        evt = triggerValueObservable.call(this, evt0 === null ? null : evt);
         var lenEvt = this.length.$update(evt0 === null ? null : undefined);
         if ((evt && evt.cancel) || (lenEvt && lenEvt.cancel))
             evt = null;

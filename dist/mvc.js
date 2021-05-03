@@ -328,10 +328,10 @@ define(["require", "exports", "observable"], function (require, exports, observa
         }
         if (bibind) {
             DomApi.attachEvent(elem, 'blur', function () {
-                value.$update(elem.value);
+                value.$trigger(elem.value);
             });
             DomApi.attachEvent(elem, 'change', function () {
-                value.$update(elem.value);
+                value.$trigger(elem.value);
             });
         }
     }

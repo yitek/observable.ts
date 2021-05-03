@@ -321,10 +321,10 @@ function DomValueBinder(elem:any,value:Observable,bibind?:boolean){
 	}
 	if(bibind){
 		DomApi.attachEvent(elem,'blur',()=>{
-			value.$update(elem.value)
+			value.$trigger(elem.value)
 		})
 		DomApi.attachEvent(elem,'change',()=>{
-			value.$update(elem.value)
+			value.$trigger(elem.value)
 		})
 	}
 }
